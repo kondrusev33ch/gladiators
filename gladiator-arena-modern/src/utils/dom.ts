@@ -91,7 +91,11 @@ export function hide(element: HTMLElement): void {
  */
 export function toggle(element: HTMLElement, force?: boolean): void {
   if (force !== undefined) {
-    force ? show(element) : hide(element);
+    if (force) {
+      show(element);
+    } else {
+      hide(element);
+    }
   } else {
     element.classList.toggle('hidden');
   }
@@ -174,7 +178,7 @@ export function triggerAnimation(
   animationClass: string
 ): void {
   element.classList.remove(animationClass);
-  // Force reflow to restart animation
-  void element.offsetHeight;
+  // Force reflow to restart animation without relying on unused expressions
+  element.getBoundingClientRect();
   element.classList.add(animationClass);
 }

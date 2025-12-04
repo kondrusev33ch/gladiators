@@ -16,6 +16,11 @@
     /* Borders (using fixed color values) */
     --border-gold: 2px solid #c9a227;
     --border-gold-thick: 4px double #8b6914;
+
+    /* Layout helpers */
+    --arena-height: clamp(230px, 38vh, 320px);
+    --combat-log-height: clamp(170px, 32vh, 300px);
+    --app-max-width: 960px;
   }
 
   *, *::before, *::after {
@@ -25,15 +30,54 @@
   }
 
   html, body {
-    height: 100%;
-    overflow: hidden;
+    min-height: 100%;
+    overflow-x: hidden;
   }
 
   body {
     @apply font-crimson text-base text-ink;
     background: radial-gradient(ellipse at center, #1a1510 0%, #0d0a08 100%);
-    @apply flex justify-center items-center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 16px;
+    overflow-y: auto;
     user-select: none;
+  }
+
+  #app {
+    width: min(100%, var(--app-max-width));
+    min-height: calc(100vh - 32px);
+    height: min(95vh, 820px);
+  }
+
+  @media (max-width: 768px) {
+    body {
+      align-items: stretch;
+      justify-content: flex-start;
+      padding: 12px;
+    }
+
+    :root {
+      --arena-height: clamp(200px, 36vh, 260px);
+      --combat-log-height: clamp(150px, 30vh, 240px);
+    }
+
+    #app {
+      height: auto;
+      min-height: calc(100vh - 24px);
+      max-height: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 
   h1, h2, h3 {
@@ -51,6 +95,16 @@
 
   h3 {
     @apply text-base text-gold-dark;
+  }
+
+  .arena {
+    height: var(--arena-height);
+  }
+
+  .combat-log {
+    height: var(--combat-log-height);
+    max-height: var(--combat-log-height);
+    min-height: 160px;
   }
 }
 

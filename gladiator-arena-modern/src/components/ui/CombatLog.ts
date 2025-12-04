@@ -7,6 +7,7 @@ import { createElement } from '../../utils/dom';
 
 export class CombatLog {
   private container: HTMLElement;
+  private readonly maxEntries = 120;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -28,6 +29,9 @@ export class CombatLog {
 
     this.container.appendChild(entry);
 
+    // Trim old entries to avoid unbounded DOM growth during long sessions
+    this.trimOverflow();
+
     // Only auto-scroll if user was already near the bottom
     if (isNearBottom) {
       this.container.scrollTop = this.container.scrollHeight;
@@ -39,5 +43,18 @@ export class CombatLog {
    */
   clear(): void {
     this.container.innerHTML = '';
+  }
+
+  /**
+   * Remove oldest entries beyond the max limit
+   */
+  private trimOverflow(): void {
+    const excess = this.container.children.length - this.maxEntries;
+    for (let i = 0; i < excess; i++) {
+      const first = this.container.firstElementChild;
+      if (first) {
+        this.container.removeChild(first);
+      }
+    }
   }
 }

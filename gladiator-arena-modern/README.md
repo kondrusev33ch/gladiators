@@ -19,6 +19,12 @@ A turn-based gladiator combat game built with modern web technologies.
 - Combat log and battle statistics
 - Fully responsive design
 
+## Polish & Testing (Phase 7)
+- Responsive shell with mobile-first padding and clamped arena/log heights
+- Combat log capped to prevent DOM bloat during long sessions
+- Respect `prefers-reduced-motion` for accessibility and smoother performance on low-power devices
+- Game reset clears UI/screens and intervals to avoid stale state between battles
+
 ## Project Structure
 
 ```

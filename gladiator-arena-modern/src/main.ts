@@ -11,10 +11,12 @@ import { wait } from './utils/async';
 import type { Fighter as FighterData } from './types/gladiator.types';
 import { combatSystem } from './systems/Combat';
 import { SelectionScreen, BattleScreen, ResultsScreen } from './components/screens';
+import type { Fighter as FighterComponent } from './components/arena/Fighter';
 
 /**
  * Screen instances
  */
+let selectionScreen: SelectionScreen;
 let battleScreen: BattleScreen;
 let resultsScreen: ResultsScreen;
 
@@ -39,6 +41,12 @@ async function startBattle(): Promise<void> {
 
   // Reset battle screen to clear previous logs and fighters
   battleScreen.reset();
+
+  // Ensure previous intervals are cleared before starting a new battle
+  if (battleInterval) {
+    clearInterval(battleInterval);
+    battleInterval = null;
+  }
 
   // Transition to battle screen
   await stateMachine.transitionTo('battle');
@@ -122,8 +130,8 @@ function executeTurn(): void {
  * Execute an attack
  */
 function executeAttack(
-  attacker: any,
-  defender: any,
+  attacker: FighterComponent,
+  defender: FighterComponent,
   attackerData: FighterData,
   defenderData: FighterData,
   attackerId: 'player' | 'enemy'
@@ -266,13 +274,33 @@ function init(): void {
   game.init();
 
   // Initialize screen components
-  new SelectionScreen();
+  selectionScreen = new SelectionScreen();
   battleScreen = new BattleScreen();
   resultsScreen = new ResultsScreen();
 
   // Listen for battle start
   eventBus.on(EVENTS.BATTLE_START, async () => {
     await startBattle();
+  });
+
+  // Ensure full reset clears UI, state, and any running intervals
+  eventBus.on(EVENTS.GAME_RESET, () => {
+    if (battleInterval) {
+      clearInterval(battleInterval);
+      battleInterval = null;
+    }
+
+    playerData = null;
+    enemyData = null;
+    turnCount = 0;
+    battleStats = {
+      player: { damage: 0, crits: 0, dodges: 0, misses: 0 },
+      enemy: { damage: 0, crits: 0, dodges: 0, misses: 0 },
+    };
+
+    selectionScreen.reset();
+    battleScreen.reset();
+    resultsScreen.reset();
   });
 
   // Log system status

@@ -8,6 +8,7 @@ import { createElement, $required } from '../../utils/dom';
 import { eventBus, EVENTS } from '../../core/EventBus';
 import { Effects } from '../../systems/Effects';
 import type { Fighter } from '../../types/gladiator.types';
+import type { LogType } from '../../types/game.types';
 
 export class BattleScreen {
   private container: HTMLElement;
@@ -43,7 +44,6 @@ export class BattleScreen {
     const logContainer = createElement('div', {
       className: 'combat-log overflow-y-auto p-4 bg-white/20 border-2 border-gold rounded text-sm',
     });
-    logContainer.style.height = '300px'; // Fixed height for scrolling
 
     this.combatLog = new CombatLog(logContainer);
 
@@ -69,7 +69,7 @@ export class BattleScreen {
 
     // Create VS badge
     this.vsElement = createElement('div', {
-      className: 'arena__vs absolute top-[15%] left-1/2 -translate-x-1/2 -translate-y-1/2 font-cinzel text-6xl font-bold text-white z-[5] opacity-0 transition-opacity duration-600',
+      className: 'arena__vs absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 font-cinzel text-6xl font-bold text-white z-[5] opacity-0 transition-opacity duration-600',
       textContent: 'VS',
       innerHTML: 'VS',
     });
@@ -93,10 +93,10 @@ export class BattleScreen {
     );
 
     // Listen for log messages
-    eventBus.on<{ message: string; type?: string }>(
+    eventBus.on<{ message: string; type?: LogType }>(
       'combat:log',
       ({ message, type }) => {
-        this.combatLog?.log(message, type as any);
+        this.combatLog?.log(message, (type ?? 'system') as LogType);
       }
     );
   }
