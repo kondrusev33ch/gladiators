@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gladiator Arena</title>
+  </head>
+  <body>
+    <div id="app" class="w-full max-w-[900px] h-[95vh] max-h-[800px] bg-parchment border-4 border-gold-dark rounded-lg shadow-arena relative flex flex-col overflow-hidden">
+      <!-- Decorative Corners -->
+      <div class="corner corner--tl"></div>
+      <div class="corner corner--tr"></div>
+      <div class="corner corner--bl"></div>
+      <div class="corner corner--br"></div>
+
+      <!-- Header -->
+      <header class="text-center py-6 px-4 border-b-2 border-gold bg-gradient-to-b from-gold/10 to-transparent">
+        <h1 class="text-4xl md:text-5xl font-cinzel font-semibold uppercase tracking-widest text-blood">
+          Gladiator Arena
+        </h1>
+        <div class="text-sm tracking-[0.3em] text-ink-light mt-1 font-crimson">
+          Ave Imperator, morituri te salutant
+        </div>
+      </header>
+
+      <!-- Selection Screen -->
+      <section id="screen-selection" class="flex-1 flex flex-col p-4 overflow-y-auto hidden">
+        <h2 class="text-2xl font-cinzel text-center mb-4">Choose Your Champion</h2>
+        <p class="text-center italic text-ink-light mb-4 font-crimson">
+          Select one of eight legendary fighters
+        </p>
+
+        <div id="gladiator-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4"></div>
+
+        <div id="selection-info" class="text-center min-h-[50px] p-2 font-semibold text-blood font-crimson"></div>
+
+        <button id="btn-fight" class="mt-auto self-center bg-gradient-to-b from-gold to-gold-dark text-white font-cinzel font-semibold text-lg uppercase tracking-wide px-8 py-3 rounded hover:brightness-110 transition-all shadow-lg disabled:grayscale disabled:opacity-60 disabled:cursor-not-allowed" disabled>
+          Enter the Arena
+        </button>
+      </section>
+
+      <!-- Battle Screen -->
+      <section id="screen-battle" class="flex-1 flex flex-col p-4 hidden">
+        <div id="arena" class="relative h-[280px] bg-gradient-to-b from-black/30 via-black/10 to-black/40 border-4 border-ink rounded-md mb-4 overflow-hidden">
+          <div class="absolute bottom-0 w-full h-[35px] bg-gradient-to-b from-[#c4a574] to-[#8b6914] border-t-2 border-black/30"></div>
+          <div id="vs-badge" class="absolute top-[15%] left-1/2 -translate-x-1/2 -translate-y-1/2 font-cinzel text-7xl font-bold text-white opacity-0 transition-opacity duration-1000 z-10" style="text-shadow: 0 0 30px black, 0 0 60px black">VS</div>
+        </div>
+
+        <div id="combat-log" class="flex-1 min-h-[120px] max-h-[150px] bg-white/30 border-2 border-gold rounded p-2 overflow-y-auto font-crimson text-sm">
+          <div class="text-ink-light">Awaiting combatants...</div>
+        </div>
+      </section>
+
+      <!-- Results Screen -->
+      <section id="screen-results" class="flex-1 flex flex-col p-4 overflow-y-auto hidden">
+        <h2 id="results-title" class="text-4xl font-cinzel text-center mb-4">Victory</h2>
+        <p class="text-center italic text-ink-light mb-6 font-crimson">
+          The crowd roars! Here are the battle statistics.
+        </p>
+
+        <table class="w-full border-collapse mb-8">
+          <thead>
+            <tr>
+              <th class="border border-gold p-2 bg-gold/20 font-cinzel font-semibold">Statistic</th>
+              <th class="border border-gold p-2 bg-gold/20 font-cinzel font-semibold">You</th>
+              <th class="border border-gold p-2 bg-gold/20 font-cinzel font-semibold">Opponent</th>
+            </tr>
+          </thead>
+          <tbody id="stats-body" class="font-crimson"></tbody>
+        </table>
+
+        <button id="btn-reset" class="mt-auto self-center bg-gradient-to-b from-gold to-gold-dark text-white font-cinzel font-semibold text-lg uppercase tracking-wide px-8 py-3 rounded hover:brightness-110 transition-all shadow-lg">
+          Fight Again
+        </button>
+      </section>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

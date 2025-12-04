@@ -1,0 +1,243 @@
+/* ============================================
+   BASE STYLES & CSS VARIABLES
+   ============================================ */
+
+@layer base {
+  /* Google Fonts Import */
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
+
+  :root {
+    /* Animation Durations */
+    --anim-fast: 150ms;
+    --anim-normal: 300ms;
+    --anim-slow: 600ms;
+    --anim-very-slow: 1000ms;
+
+    /* Borders (using fixed color values) */
+    --border-gold: 2px solid #c9a227;
+    --border-gold-thick: 4px double #8b6914;
+  }
+
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    @apply font-crimson text-base text-ink;
+    background: radial-gradient(ellipse at center, #1a1510 0%, #0d0a08 100%);
+    @apply flex justify-center items-center;
+    user-select: none;
+  }
+
+  h1, h2, h3 {
+    @apply font-cinzel font-semibold uppercase tracking-widest;
+  }
+
+  h1 {
+    @apply text-2xl md:text-4xl text-blood;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.4);
+  }
+
+  h2 {
+    @apply text-xl md:text-3xl text-ink;
+  }
+
+  h3 {
+    @apply text-base text-gold-dark;
+  }
+}
+
+/* ============================================
+   COMPONENT LAYER UTILITIES
+   ============================================ */
+
+@layer components {
+  /* Decorative Corners */
+  .corner {
+    @apply absolute w-8 h-8 pointer-events-none z-[100];
+    border: 3px solid #8b6914;
+  }
+
+  .corner--tl {
+    @apply top-2 left-2;
+    border-right: none;
+    border-bottom: none;
+  }
+
+  .corner--tr {
+    @apply top-2 right-2;
+    border-left: none;
+    border-bottom: none;
+  }
+
+  .corner--bl {
+    @apply bottom-2 left-2;
+    border-right: none;
+    border-top: none;
+  }
+
+  .corner--br {
+    @apply bottom-2 right-2;
+    border-left: none;
+    border-top: none;
+  }
+
+  /* Screen transitions */
+  .screen-fade-in {
+    animation: fadeIn var(--anim-normal) ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Combat Log Styles */
+  .combat-log__hit {
+    color: #8b1a1a;
+  }
+
+  .combat-log__crit {
+    color: #c62828;
+    font-weight: 600;
+  }
+
+  .combat-log__miss {
+    color: #1565c0;
+    font-style: italic;
+  }
+
+  .combat-log__system {
+    color: #4a3728;
+  }
+
+  /* Gladiator Card Styles */
+  .gladiator-card {
+    background: rgba(255, 255, 255, 0.25);
+    border: 2px solid #c9a227;
+    border-radius: 6px;
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    transition:
+      transform 150ms ease,
+      background 150ms ease,
+      box-shadow 150ms ease;
+  }
+
+  .gladiator-card:hover {
+    background: rgba(255, 255, 255, 0.4);
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  }
+
+  .gladiator-card--selected {
+    background: rgba(139, 26, 26, 0.15);
+    border-color: #8b1a1a;
+    transform: scale(1.02);
+    box-shadow:
+      0 0 0 2px #8b1a1a,
+      0 8px 25px rgba(0, 0, 0, 0.4);
+  }
+
+  .gladiator-card__icon {
+    font-size: 2.5rem;
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .gladiator-card__name {
+    font-family: 'Cinzel', serif;
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 4px;
+  }
+
+  .gladiator-card__stats {
+    font-size: 0.75rem;
+    color: #4a3728;
+    line-height: 1.3;
+  }
+
+  .selection__info {
+    text-align: center;
+    min-height: 50px;
+    padding: 8px;
+    font-weight: 600;
+    color: #8b1a1a;
+  }
+
+  /* Button Styles */
+  .btn {
+    font-family: 'Cinzel', serif;
+    font-weight: 600;
+    font-size: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 14px 32px;
+    border-radius: 4px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    transition:
+      all 200ms ease,
+      transform 100ms ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  .btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  }
+
+  .btn:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .btn--primary {
+    background: linear-gradient(135deg, #8b1a1a 0%, #5c1010 100%);
+    color: #e8dcc4;
+    border-color: #c9a227;
+  }
+
+  .btn--primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #a52020 0%, #6b1414 100%);
+    border-color: #c9a227;
+    box-shadow:
+      0 6px 16px rgba(0, 0, 0, 0.4),
+      0 0 20px rgba(201, 162, 39, 0.3);
+  }
+
+  .btn--secondary {
+    background: linear-gradient(135deg, #c9a227 0%, #8b6914 100%);
+    color: #2c1810;
+    border-color: #8b6914;
+  }
+
+  .btn--secondary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #d4ad2f 0%, #9c7518 100%);
+    border-color: #8b6914;
+  }
+
+  .btn:disabled {
+    background: linear-gradient(135deg, #4a3728 0%, #2c1810 100%);
+    color: #6b5a4a;
+    border-color: #4a3728;
+    cursor: not-allowed;
+    opacity: 0.6;
+    box-shadow: none;
+  }
+}

@@ -1,0 +1,25 @@
+/* All @import statements must come first */
+@import 'tailwindcss';
+@import './styles/base.css';
+@import './styles/animations.css';
+@import './styles/sprites.css';
+
+/* Theme customization for Tailwind v4 */
+@theme {
+  /* Custom colors */
+  --color-parchment: #e8dcc4;
+  --color-parchment-dark: #d4c4a8;
+  --color-gold: #c9a227;
+  --color-gold-dark: #8b6914;
+  --color-blood: #8b1a1a;
+  --color-blood-dark: #5c1010;
+  --color-ink: #2c1810;
+  --color-ink-light: #4a3728;
+
+  /* Custom font families */
+  --font-cinzel: 'Cinzel', serif;
+  --font-crimson: 'Crimson Text', serif;
+
+  /* Custom shadows */
+  --shadow-arena: 0 0 60px rgba(0, 0, 0, 0.8), inset 0 0 100px rgba(139, 26, 26, 0.05);
+}

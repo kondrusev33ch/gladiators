@@ -1,0 +1,184 @@
+/* ============================================
+   SPRITE ANIMATIONS
+   ============================================ */
+
+/* Idle Animation */
+.sprite--idle .sprite__torso {
+  animation: breathe 2s infinite ease-in-out;
+}
+
+.sprite--idle .sprite__head {
+  animation: headBob 2s infinite ease-in-out;
+}
+
+.sprite--idle .sprite__arm {
+  animation: armSway 2.5s infinite ease-in-out;
+}
+
+/* Walk Animation */
+.sprite--walk .sprite__leg--left {
+  animation: walkLegLeft 0.6s infinite linear;
+}
+
+.sprite--walk .sprite__leg--right {
+  animation: walkLegRight 0.6s infinite linear;
+}
+
+.sprite--walk {
+  animation: walkBounce 0.3s infinite alternate;
+}
+
+/* Attack Animation */
+.sprite--attack .sprite__arm--right {
+  animation: attackStrike 0.35s ease-out forwards;
+}
+
+/* Hit Animation */
+.sprite--hit {
+  animation: hitShake 0.4s ease-out;
+}
+
+/* Death Animation */
+.sprite--death {
+  animation: deathCollapse 1.2s ease-out forwards;
+}
+
+/* Victory Animation */
+.sprite--victory .sprite__arm--right {
+  animation: victoryRaise 0.8s ease-out forwards;
+}
+
+/* Damage Float Animation */
+.fighter__damage--animate {
+  animation: damageFloat 1.2s ease-out forwards;
+}
+
+/* ============================================
+   KEYFRAME DEFINITIONS
+   ============================================ */
+
+@keyframes breathe {
+  0%, 100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(1.015);
+  }
+}
+
+@keyframes headBob {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes armSway {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
+}
+
+@keyframes walkLegLeft {
+  0%, 100% {
+    transform: rotate(25deg);
+  }
+  50% {
+    transform: rotate(-25deg);
+  }
+}
+
+@keyframes walkLegRight {
+  0%, 100% {
+    transform: rotate(-25deg);
+  }
+  50% {
+    transform: rotate(25deg);
+  }
+}
+
+@keyframes walkBounce {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes attackStrike {
+  0% {
+    transform: rotate(0deg);
+  }
+  35% {
+    transform: rotate(-50deg);
+  }
+  100% {
+    transform: rotate(90deg);
+  }
+}
+
+@keyframes hitShake {
+  0% {
+    transform: translateX(0);
+    filter: none;
+  }
+  25% {
+    transform: translateX(-6px);
+    filter: brightness(0.4) sepia(1) hue-rotate(-50deg) saturate(6);
+  }
+  50% {
+    transform: translateX(6px);
+  }
+  75% {
+    transform: translateX(-3px);
+  }
+  100% {
+    transform: translateX(0);
+    filter: none;
+  }
+}
+
+@keyframes deathCollapse {
+  0% {
+    transform: rotate(0deg) translateY(0);
+    opacity: 1;
+  }
+  40% {
+    transform: rotate(30deg) translateY(10px);
+  }
+  100% {
+    transform: rotate(90deg) translateY(40px);
+    opacity: 0.3;
+  }
+}
+
+@keyframes victoryRaise {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(-120deg);
+  }
+}
+
+@keyframes damageFloat {
+  0% {
+    opacity: 1;
+    top: -40px;
+    transform: translateX(-50%) scale(1);
+  }
+  20% {
+    transform: translateX(-50%) scale(1.3);
+  }
+  100% {
+    opacity: 0;
+    top: -120px;
+    transform: translateX(-50%) scale(1);
+  }
+}

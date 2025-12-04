@@ -1,0 +1,1713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gladiator Arena</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <style>
+        /* ============================================
+           CSS VARIABLES & CONFIGURATION
+           ============================================ */
+        :root {
+            /* Color Palette */
+            --color-parchment: #e8dcc4;
+            --color-parchment-dark: #d4c4a8;
+            --color-gold: #c9a227;
+            --color-gold-dark: #8b6914;
+            --color-blood: #8b1a1a;
+            --color-blood-dark: #5c1010;
+            --color-ink: #2c1810;
+            --color-ink-light: #4a3728;
+            --color-shadow: rgba(0, 0, 0, 0.4);
+            
+            /* Gladiator Colors */
+            --color-skin: #d4a574;
+            --color-armor: #6b6b6b;
+            --color-armor-gold: #c9a227;
+            --color-leather: #8b4513;
+            
+            /* Health Bar Colors */
+            --color-health: #2d5a27;
+            --color-health-low: #8b1a1a;
+            
+            /* Spacing */
+            --spacing-xs: 4px;
+            --spacing-sm: 8px;
+            --spacing-md: 16px;
+            --spacing-lg: 24px;
+            --spacing-xl: 32px;
+            
+            /* Animation Durations */
+            --anim-fast: 150ms;
+            --anim-normal: 300ms;
+            --anim-slow: 600ms;
+            --anim-very-slow: 1000ms;
+            
+            /* Borders */
+            --border-gold: 2px solid var(--color-gold);
+            --border-gold-thick: 4px double var(--color-gold-dark);
+        }
+
+        /* ============================================
+           RESET & BASE STYLES
+           ============================================ */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'Crimson Text', Georgia, serif;
+            font-size: 16px;
+            line-height: 1.5;
+            color: var(--color-ink);
+            background: 
+                radial-gradient(ellipse at center, #1a1510 0%, #0d0a08 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            user-select: none;
+        }
+
+        /* ============================================
+           TYPOGRAPHY
+           ============================================ */
+        h1, h2, h3 {
+            font-family: 'Cinzel', serif;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        h1 {
+            font-size: clamp(1.5rem, 4vw, 2.5rem);
+            color: var(--color-blood);
+            text-shadow: 1px 1px 2px var(--color-shadow);
+        }
+
+        h2 {
+            font-size: clamp(1.2rem, 3vw, 1.8rem);
+            color: var(--color-ink);
+        }
+
+        h3 {
+            font-size: 1rem;
+            color: var(--color-gold-dark);
+        }
+
+        /* ============================================
+           MAIN CONTAINER
+           ============================================ */
+        #app {
+            width: 100%;
+            max-width: 900px;
+            height: 95vh;
+            max-height: 800px;
+            background: 
+                url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="4" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter></defs><rect width="100" height="100" filter="url(%23noise)" opacity="0.08"/></svg>'),
+                linear-gradient(135deg, var(--color-parchment) 0%, var(--color-parchment-dark) 100%);
+            border: var(--border-gold-thick);
+            border-radius: 8px;
+            box-shadow: 
+                0 0 60px rgba(0, 0, 0, 0.8),
+                inset 0 0 100px rgba(139, 26, 26, 0.05);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Decorative Corners */
+        .corner {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border: 3px solid var(--color-gold-dark);
+            pointer-events: none;
+            z-index: 100;
+        }
+        .corner--tl { top: 8px; left: 8px; border-right: none; border-bottom: none; }
+        .corner--tr { top: 8px; right: 8px; border-left: none; border-bottom: none; }
+        .corner--bl { bottom: 8px; left: 8px; border-right: none; border-top: none; }
+        .corner--br { bottom: 8px; right: 8px; border-left: none; border-top: none; }
+
+        /* ============================================
+           HEADER
+           ============================================ */
+        .header {
+            text-align: center;
+            padding: var(--spacing-lg) var(--spacing-md);
+            border-bottom: var(--border-gold);
+            background: linear-gradient(to bottom, 
+                rgba(201, 162, 39, 0.1) 0%, 
+                transparent 100%);
+        }
+
+        .header__subtitle {
+            font-size: 0.85rem;
+            letter-spacing: 0.3em;
+            color: var(--color-ink-light);
+            margin-top: var(--spacing-xs);
+        }
+
+        /* ============================================
+           SCREENS
+           ============================================ */
+        .screen {
+            flex: 1;
+            display: none;
+            flex-direction: column;
+            padding: var(--spacing-md);
+            overflow-y: auto;
+            animation: fadeIn var(--anim-normal) ease-out;
+        }
+
+        .screen--active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ============================================
+           SELECTION SCREEN
+           ============================================ */
+        .selection__title {
+            text-align: center;
+            margin-bottom: var(--spacing-md);
+        }
+
+        .selection__hint {
+            text-align: center;
+            font-style: italic;
+            color: var(--color-ink-light);
+            margin-bottom: var(--spacing-md);
+        }
+
+        .gladiator-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .gladiator-card {
+            background: rgba(255, 255, 255, 0.25);
+            border: var(--border-gold);
+            border-radius: 6px;
+            padding: var(--spacing-md);
+            text-align: center;
+            cursor: pointer;
+            transition: 
+                transform var(--anim-fast) ease,
+                background var(--anim-fast) ease,
+                box-shadow var(--anim-fast) ease;
+        }
+
+        .gladiator-card:hover {
+            background: rgba(255, 255, 255, 0.4);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px var(--color-shadow);
+        }
+
+        .gladiator-card--selected {
+            background: rgba(139, 26, 26, 0.15);
+            border-color: var(--color-blood);
+            transform: scale(1.02);
+            box-shadow: 
+                0 0 0 2px var(--color-blood),
+                0 8px 25px var(--color-shadow);
+        }
+
+        .gladiator-card__icon {
+            font-size: 2.5rem;
+            margin-bottom: var(--spacing-sm);
+            display: block;
+        }
+
+        .gladiator-card__name {
+            font-family: 'Cinzel', serif;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: var(--spacing-xs);
+        }
+
+        .gladiator-card__stats {
+            font-size: 0.75rem;
+            color: var(--color-ink-light);
+            line-height: 1.3;
+        }
+
+        .selection__info {
+            text-align: center;
+            min-height: 50px;
+            padding: var(--spacing-sm);
+            font-weight: 600;
+            color: var(--color-blood);
+        }
+
+        /* ============================================
+           BUTTONS
+           ============================================ */
+        .btn {
+            font-family: 'Cinzel', serif;
+            font-size: 1.1rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            padding: var(--spacing-md) var(--spacing-xl);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: 
+                filter var(--anim-fast) ease,
+                transform var(--anim-fast) ease;
+            align-self: center;
+            margin-top: auto;
+        }
+
+        .btn--primary {
+            background: linear-gradient(to bottom, var(--color-gold), var(--color-gold-dark));
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn--primary:hover:not(:disabled) {
+            filter: brightness(1.1);
+            transform: translateY(-2px);
+        }
+
+        .btn--primary:disabled {
+            filter: grayscale(0.8);
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* ============================================
+           BATTLE SCREEN
+           ============================================ */
+        .arena {
+            position: relative;
+            height: 280px;
+            background: 
+                linear-gradient(to bottom, 
+                    rgba(0, 0, 0, 0.3) 0%, 
+                    rgba(0, 0, 0, 0.1) 50%,
+                    rgba(0, 0, 0, 0.4) 100%),
+                url('https://upload.wikimedia.org/wikipedia/commons/thumb/6/69/Colosseum_in_Rome%2C_Italy_-_April_2007.jpg/1280px-Colosseum_in_Rome%2C_Italy_-_April_2007.jpg');
+            background-size: cover;
+            background-position: center 30%;
+            border: 4px solid var(--color-ink);
+            border-radius: 6px;
+            margin-bottom: var(--spacing-md);
+            overflow: hidden;
+            box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.6);
+        }
+
+        .arena__ground {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 35px;
+            background: linear-gradient(to bottom, #c4a574 0%, #8b6914 100%);
+            border-top: 2px solid rgba(0, 0, 0, 0.3);
+        }
+
+        .arena__vs {
+            position: absolute;
+            top: 15%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'Cinzel', serif;
+            font-size: 4rem;
+            font-weight: 700;
+            color: white;
+            text-shadow: 0 0 30px black, 0 0 60px black;
+            opacity: 0;
+            transition: opacity var(--anim-slow) ease;
+            z-index: 5;
+        }
+
+        .arena__vs--visible {
+            opacity: 1;
+        }
+
+        /* ============================================
+           FIGHTER CONTAINERS
+           ============================================ */
+        .fighter {
+            position: absolute;
+            bottom: 30px;
+            width: 100px;
+            text-align: center;
+            z-index: 10;
+            transition: 
+                left var(--anim-very-slow) ease-out,
+                right var(--anim-very-slow) ease-out;
+        }
+
+        .fighter--player {
+            left: -120px;
+        }
+
+        .fighter--enemy {
+            right: -120px;
+        }
+
+        .fighter--player.fighter--entered { left: 15%; }
+        .fighter--enemy.fighter--entered { right: 15%; }
+
+        .fighter__name {
+            font-family: 'Cinzel', serif;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 2px 8px;
+            border-radius: 3px;
+            display: inline-block;
+            margin-bottom: var(--spacing-xs);
+            white-space: nowrap;
+        }
+
+        .fighter__health {
+            width: 110%;
+            margin-left: -5%;
+            height: 12px;
+            background: #222;
+            border: 2px solid #111;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: var(--spacing-sm);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .fighter__health-bar {
+            height: 100%;
+            background: var(--color-health);
+            transition: width var(--anim-normal) ease-out;
+        }
+
+        .fighter__health-bar--low {
+            background: var(--color-health-low);
+        }
+
+        .fighter__damage {
+            position: absolute;
+            top: -40px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Cinzel', serif;
+            font-weight: 700;
+            font-size: 2rem;
+            text-shadow: 2px 2px 0 black;
+            pointer-events: none;
+            z-index: 30;
+            opacity: 0;
+        }
+
+        .fighter__damage--animate {
+            animation: damageFloat 1.2s ease-out forwards;
+        }
+
+        @keyframes damageFloat {
+            0% { opacity: 1; top: -40px; transform: translateX(-50%) scale(1); }
+            20% { transform: translateX(-50%) scale(1.3); }
+            100% { opacity: 0; top: -120px; transform: translateX(-50%) scale(1); }
+        }
+
+        /* ============================================
+           GLADIATOR SPRITE (CSS Doll)
+           ============================================ */
+        .sprite {
+            position: relative;
+            width: 80px;
+            height: 110px;
+            margin: 0 auto;
+        }
+
+        .sprite--flipped {
+            transform: scaleX(-1);
+        }
+
+        .sprite__part {
+            position: absolute;
+            background: var(--color-skin);
+            border: 1px solid #555;
+        }
+
+        /* Head */
+        .sprite__head {
+            top: 0;
+            left: 28px;
+            width: 24px;
+            height: 28px;
+            border-radius: 6px;
+            z-index: 5;
+        }
+
+        .sprite__helmet {
+            position: absolute;
+            top: -4px;
+            left: -2px;
+            width: 28px;
+            height: 12px;
+            background: var(--color-armor);
+            border-radius: 4px 4px 0 0;
+            border: 1px solid #333;
+        }
+
+        .sprite__plume {
+            position: absolute;
+            top: -10px;
+            left: 8px;
+            width: 12px;
+            height: 10px;
+            background: var(--color-blood);
+            border-radius: 50% 50% 0 0;
+        }
+
+        /* Torso */
+        .sprite__torso {
+            top: 24px;
+            left: 20px;
+            width: 40px;
+            height: 40px;
+            border-radius: 4px;
+            z-index: 3;
+        }
+
+        .sprite__armor {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 55%;
+            background: var(--color-armor);
+            border-bottom: 2px solid #333;
+        }
+
+        .sprite__skirt {
+            position: absolute;
+            bottom: -8px;
+            left: 0;
+            width: 100%;
+            height: 16px;
+            background: var(--color-blood);
+        }
+
+        /* Arms */
+        .sprite__arm {
+            width: 10px;
+            height: 30px;
+            top: 26px;
+            border-radius: 3px;
+            transform-origin: 50% 4px;
+            z-index: 4;
+        }
+
+        .sprite__arm--left {
+            left: 12px;
+        }
+
+        .sprite__arm--right {
+            left: 58px;
+            z-index: 2;
+        }
+
+        /* Legs */
+        .sprite__leg {
+            width: 12px;
+            height: 35px;
+            top: 60px;
+            border-radius: 3px;
+            transform-origin: 50% 4px;
+            z-index: 2;
+        }
+
+        .sprite__leg--left { left: 24px; }
+        .sprite__leg--right { left: 44px; }
+
+        /* Equipment */
+        .sprite__shield {
+            position: absolute;
+            width: 24px;
+            height: 40px;
+            background: var(--color-armor-gold);
+            border: 2px solid #555;
+            border-radius: 3px;
+            top: 12px;
+            left: -6px;
+        }
+
+        .sprite__weapon {
+            position: absolute;
+            bottom: -8px;
+            left: 2px;
+            transform-origin: 50% 100%;
+        }
+
+        /* Weapon Types */
+        .weapon--sword {
+            width: 6px;
+            height: 45px;
+            background: linear-gradient(to bottom, silver, #888);
+            border: 1px solid #333;
+        }
+
+        .weapon--spear {
+            width: 4px;
+            height: 70px;
+            background: var(--color-leather);
+            top: -25px;
+        }
+
+        .weapon--spear::after {
+            content: '';
+            position: absolute;
+            top: -8px;
+            left: -3px;
+            width: 10px;
+            height: 12px;
+            background: silver;
+            clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+        }
+
+        .weapon--trident {
+            width: 4px;
+            height: 70px;
+            background: var(--color-leather);
+            top: -25px;
+        }
+
+        .weapon--trident::before {
+            content: '';
+            position: absolute;
+            top: -8px;
+            left: -5px;
+            width: 14px;
+            height: 8px;
+            border-bottom: 3px solid silver;
+            border-left: 2px solid silver;
+            border-right: 2px solid silver;
+        }
+
+        .weapon--trident::after {
+            content: '';
+            position: absolute;
+            top: -12px;
+            left: 0;
+            width: 4px;
+            height: 12px;
+            background: silver;
+        }
+
+        /* ============================================
+           SPRITE ANIMATIONS
+           ============================================ */
+        
+        /* Idle */
+        .sprite--idle .sprite__torso {
+            animation: breathe 2s infinite ease-in-out;
+        }
+        .sprite--idle .sprite__head {
+            animation: headBob 2s infinite ease-in-out;
+        }
+        .sprite--idle .sprite__arm {
+            animation: armSway 2.5s infinite ease-in-out;
+        }
+
+        /* Walk */
+        .sprite--walk .sprite__leg--left {
+            animation: walkLegLeft 0.6s infinite linear;
+        }
+        .sprite--walk .sprite__leg--right {
+            animation: walkLegRight 0.6s infinite linear;
+        }
+        .sprite--walk {
+            animation: walkBounce 0.3s infinite alternate;
+        }
+
+        /* Attack */
+        .sprite--attack .sprite__arm--right {
+            animation: attackStrike 0.35s ease-out forwards;
+        }
+
+        /* Hit */
+        .sprite--hit {
+            animation: hitShake 0.4s ease-out;
+        }
+
+        /* Death */
+        .sprite--death {
+            animation: deathCollapse 1.2s ease-out forwards;
+        }
+
+        /* Victory */
+        .sprite--victory .sprite__arm--right {
+            animation: victoryRaise 0.8s ease-out forwards;
+        }
+
+        @keyframes breathe {
+            0%, 100% { transform: scaleY(1); }
+            50% { transform: scaleY(1.015); }
+        }
+
+        @keyframes headBob {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-1px); }
+        }
+
+        @keyframes armSway {
+            0%, 100% { transform: rotate(0deg); }
+            50% { transform: rotate(4deg); }
+        }
+
+        @keyframes walkLegLeft {
+            0%, 100% { transform: rotate(25deg); }
+            50% { transform: rotate(-25deg); }
+        }
+
+        @keyframes walkLegRight {
+            0%, 100% { transform: rotate(-25deg); }
+            50% { transform: rotate(25deg); }
+        }
+
+        @keyframes walkBounce {
+            from { transform: translateY(0); }
+            to { transform: translateY(-2px); }
+        }
+
+        @keyframes attackStrike {
+            0% { transform: rotate(0deg); }
+            35% { transform: rotate(-50deg); }
+            100% { transform: rotate(90deg); }
+        }
+
+        @keyframes hitShake {
+            0% { transform: translateX(0); filter: none; }
+            25% { transform: translateX(-6px); filter: brightness(0.4) sepia(1) hue-rotate(-50deg) saturate(6); }
+            50% { transform: translateX(6px); }
+            75% { transform: translateX(-3px); }
+            100% { transform: translateX(0); filter: none; }
+        }
+
+        @keyframes deathCollapse {
+            0% { transform: rotate(0deg) translateY(0); opacity: 1; }
+            40% { transform: rotate(30deg) translateY(10px); }
+            100% { transform: rotate(90deg) translateY(40px); opacity: 0.3; }
+        }
+
+        @keyframes victoryRaise {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(-120deg); }
+        }
+
+        /* ============================================
+           COMBAT LOG
+           ============================================ */
+        .combat-log {
+            flex: 1;
+            min-height: 120px;
+            max-height: 150px;
+            background: rgba(255, 255, 255, 0.3);
+            border: var(--border-gold);
+            border-radius: 4px;
+            padding: var(--spacing-sm) var(--spacing-md);
+            overflow-y: auto;
+            font-family: 'Crimson Text', serif;
+            font-size: 0.9rem;
+            box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .combat-log__entry {
+            padding: var(--spacing-xs) 0;
+            border-bottom: 1px dotted rgba(0, 0, 0, 0.15);
+        }
+
+        .combat-log__entry:last-child {
+            border-bottom: none;
+        }
+
+        .combat-log__hit { color: var(--color-blood); }
+        .combat-log__crit { color: #c62828; font-weight: 600; }
+        .combat-log__miss { color: #1565c0; font-style: italic; }
+        .combat-log__system { color: var(--color-ink-light); }
+
+        /* ============================================
+           RESULTS SCREEN
+           ============================================ */
+        .results__title {
+            text-align: center;
+            font-size: clamp(2rem, 6vw, 3.5rem);
+            margin-bottom: var(--spacing-md);
+        }
+
+        .results__title--victory { color: var(--color-health); }
+        .results__title--defeat { color: var(--color-blood); }
+
+        .results__subtitle {
+            text-align: center;
+            font-style: italic;
+            color: var(--color-ink-light);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .stats-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .stats-table th,
+        .stats-table td {
+            border: 1px solid var(--color-gold);
+            padding: var(--spacing-sm) var(--spacing-md);
+            text-align: center;
+        }
+
+        .stats-table th {
+            background: rgba(201, 162, 39, 0.2);
+            font-family: 'Cinzel', serif;
+            font-weight: 600;
+        }
+
+        .stats-table td {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* ============================================
+           PARTICLES
+           ============================================ */
+        .particle {
+            position: absolute;
+            pointer-events: none;
+            z-index: 20;
+            border-radius: 50%;
+        }
+
+        /* ============================================
+           RESPONSIVE
+           ============================================ */
+        @media (max-width: 600px) {
+            .gladiator-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .arena {
+                height: 220px;
+            }
+            
+            .fighter--player.fighter--entered { left: 10%; }
+            .fighter--enemy.fighter--entered { right: 10%; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <!-- Decorative Corners -->
+    <div class="corner corner--tl"></div>
+    <div class="corner corner--tr"></div>
+    <div class="corner corner--bl"></div>
+    <div class="corner corner--br"></div>
+
+    <!-- Header -->
+    <header class="header">
+        <h1>Gladiator Arena</h1>
+        <div class="header__subtitle">Ave Imperator, morituri te salutant</div>
+    </header>
+
+    <!-- Selection Screen -->
+    <section id="screen-selection" class="screen screen--active">
+        <h2 class="selection__title">Choose Your Champion</h2>
+        <p class="selection__hint">Select one of eight legendary fighters</p>
+        
+        <div id="gladiator-grid" class="gladiator-grid"></div>
+        
+        <div id="selection-info" class="selection__info"></div>
+        
+        <button id="btn-fight" class="btn btn--primary" disabled>Enter the Arena</button>
+    </section>
+
+    <!-- Battle Screen -->
+    <section id="screen-battle" class="screen">
+        <div class="arena" id="arena">
+            <div class="arena__ground"></div>
+            <div class="arena__vs" id="vs-badge">VS</div>
+
+            <!-- Player Fighter -->
+            <div class="fighter fighter--player" id="fighter-player">
+                <div class="fighter__name" id="player-name">Player</div>
+                <div class="fighter__health">
+                    <div class="fighter__health-bar" id="player-health"></div>
+                </div>
+                <div class="fighter__damage" id="player-damage"></div>
+                <div id="player-sprite"></div>
+            </div>
+
+            <!-- Enemy Fighter -->
+            <div class="fighter fighter--enemy" id="fighter-enemy">
+                <div class="fighter__name" id="enemy-name">Enemy</div>
+                <div class="fighter__health">
+                    <div class="fighter__health-bar" id="enemy-health"></div>
+                </div>
+                <div class="fighter__damage" id="enemy-damage"></div>
+                <div id="enemy-sprite"></div>
+            </div>
+        </div>
+
+        <div class="combat-log" id="combat-log">
+            <div class="combat-log__entry combat-log__system">Awaiting combatants...</div>
+        </div>
+    </section>
+
+    <!-- Results Screen -->
+    <section id="screen-results" class="screen">
+        <h2 id="results-title" class="results__title">Victory</h2>
+        <p class="results__subtitle">The crowd roars! Here are the battle statistics.</p>
+        
+        <table class="stats-table">
+            <thead>
+                <tr>
+                    <th>Statistic</th>
+                    <th>You</th>
+                    <th>Opponent</th>
+                </tr>
+            </thead>
+            <tbody id="stats-body"></tbody>
+        </table>
+        
+        <button class="btn btn--primary" onclick="Game.reset()">Fight Again</button>
+    </section>
+</div>
+
+<script>
+/* ===========================================
+   CONFIGURATION
+   =========================================== */
+const CONFIG = {
+    // Timing (milliseconds)
+    TIMING: {
+        WALK_IN_DELAY: 100,
+        FIGHT_START_DELAY: 1800,
+        TURN_INTERVAL: 1800,
+        ATTACK_DURATION: 350,
+        LUNGE_DURATION: 300,
+        HIT_DELAY: 200,
+        DEATH_DELAY: 1500,
+        RESULTS_DELAY: 2000,
+    },
+    
+    // Combat Mechanics
+    COMBAT: {
+        BASE_HIT_CHANCE: 65,
+        HIT_CHANCE_PER_POINT: 4,
+        MIN_HIT_CHANCE: 15,
+        MAX_HIT_CHANCE: 95,
+        CRIT_CHANCE_MULTIPLIER: 1.8,
+        CRIT_DAMAGE_MULTIPLIER: 1.6,
+        BASE_DAMAGE: 6,
+        DEFENSE_REDUCTION: 0.4,
+        MIN_DAMAGE: 1,
+    },
+    
+    // Movement
+    MOVEMENT: {
+        LUNGE_DISTANCE: 60,
+        DODGE_DISTANCE: 25,
+    },
+    
+    // Particles
+    PARTICLES: {
+        COUNT: 6,
+        MIN_SIZE: 3,
+        MAX_SIZE: 7,
+        DURATION: 500,
+    },
+};
+
+/* ===========================================
+   GLADIATOR DATA
+   =========================================== */
+const GLADIATORS = [
+    {
+        id: 'retiarius',
+        name: 'Retiarius',
+        icon: '🔱',
+        weapon: 'trident',
+        stats: { str: 6, agi: 9, def: 3, acc: 8, hp: 85 },
+        description: 'Net & Trident fighter. Swift and evasive.',
+    },
+    {
+        id: 'secutor',
+        name: 'Secutor',
+        icon: '🛡️',
+        weapon: 'sword',
+        stats: { str: 7, agi: 5, def: 8, acc: 7, hp: 110 },
+        description: 'The Pursuer. Heavy armor, relentless.',
+    },
+    {
+        id: 'murmillo',
+        name: 'Murmillo',
+        icon: '🐟',
+        weapon: 'sword',
+        stats: { str: 8, agi: 4, def: 9, acc: 6, hp: 125 },
+        description: 'The Fish. Maximum defense and health.',
+    },
+    {
+        id: 'dimachaerus',
+        name: 'Dimachaerus',
+        icon: '⚔️',
+        weapon: 'sword',
+        stats: { str: 10, agi: 7, def: 3, acc: 7, hp: 90 },
+        description: 'Dual-wielder. Devastating damage output.',
+    },
+    {
+        id: 'thraex',
+        name: 'Thraex',
+        icon: '🗡️',
+        weapon: 'sword',
+        stats: { str: 7, agi: 7, def: 6, acc: 7, hp: 100 },
+        description: 'Thracian. Well-balanced warrior.',
+    },
+    {
+        id: 'hoplomachus',
+        name: 'Hoplomachus',
+        icon: '🏛️',
+        weapon: 'spear',
+        stats: { str: 7, agi: 5, def: 7, acc: 9, hp: 105 },
+        description: 'Greek style. Precise spear strikes.',
+    },
+    {
+        id: 'velites',
+        name: 'Velites',
+        icon: '🎯',
+        weapon: 'spear',
+        stats: { str: 5, agi: 8, def: 3, acc: 10, hp: 85 },
+        description: 'Skirmisher. Rarely misses a strike.',
+    },
+    {
+        id: 'provocator',
+        name: 'Provocator',
+        icon: '⚡',
+        weapon: 'sword',
+        stats: { str: 8, agi: 6, def: 6, acc: 8, hp: 100 },
+        description: 'The Challenger. Aggressive and skilled.',
+    },
+];
+
+/* ===========================================
+   UTILITY FUNCTIONS
+   =========================================== */
+const Utils = {
+    /**
+     * Generate random number in range
+     */
+    random(min, max) {
+        return Math.random() * (max - min) + min;
+    },
+    
+    /**
+     * Generate random integer in range (inclusive)
+     */
+    randomInt(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    },
+    
+    /**
+     * Clamp value between min and max
+     */
+    clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+    },
+    
+    /**
+     * Get random element from array
+     */
+    randomElement(array) {
+        return array[Math.floor(Math.random() * array.length)];
+    },
+    
+    /**
+     * Wait for specified milliseconds
+     */
+    wait(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    },
+};
+
+/* ===========================================
+   DOM MANAGER
+   =========================================== */
+const DOM = {
+    screens: {
+        selection: document.getElementById('screen-selection'),
+        battle: document.getElementById('screen-battle'),
+        results: document.getElementById('screen-results'),
+    },
+    
+    elements: {
+        gladiatorGrid: document.getElementById('gladiator-grid'),
+        selectionInfo: document.getElementById('selection-info'),
+        btnFight: document.getElementById('btn-fight'),
+        arena: document.getElementById('arena'),
+        vsBadge: document.getElementById('vs-badge'),
+        combatLog: document.getElementById('combat-log'),
+        resultsTitle: document.getElementById('results-title'),
+        statsBody: document.getElementById('stats-body'),
+        
+        // Fighter elements
+        fighterPlayer: document.getElementById('fighter-player'),
+        fighterEnemy: document.getElementById('fighter-enemy'),
+        playerName: document.getElementById('player-name'),
+        enemyName: document.getElementById('enemy-name'),
+        playerHealth: document.getElementById('player-health'),
+        enemyHealth: document.getElementById('enemy-health'),
+        playerDamage: document.getElementById('player-damage'),
+        enemyDamage: document.getElementById('enemy-damage'),
+        playerSprite: document.getElementById('player-sprite'),
+        enemySprite: document.getElementById('enemy-sprite'),
+    },
+    
+    /**
+     * Show specified screen
+     */
+    showScreen(screenName) {
+        Object.values(this.screens).forEach(screen => {
+            screen.classList.remove('screen--active');
+        });
+        this.screens[screenName].classList.add('screen--active');
+    },
+    
+    /**
+     * Create gladiator sprite HTML
+     */
+    createSprite(gladiator, isFlipped = false) {
+        const weaponClass = `weapon--${gladiator.weapon}`;
+        const flipClass = isFlipped ? 'sprite--flipped' : '';
+        
+        return `
+            <div class="sprite sprite--idle ${flipClass}">
+                <div class="sprite__part sprite__leg sprite__leg--left"></div>
+                <div class="sprite__part sprite__leg sprite__leg--right"></div>
+                <div class="sprite__part sprite__torso">
+                    <div class="sprite__armor"></div>
+                    <div class="sprite__skirt"></div>
+                </div>
+                <div class="sprite__part sprite__head">
+                    <div class="sprite__helmet">
+                        <div class="sprite__plume"></div>
+                    </div>
+                </div>
+                <div class="sprite__part sprite__arm sprite__arm--left">
+                    <div class="sprite__shield"></div>
+                </div>
+                <div class="sprite__part sprite__arm sprite__arm--right">
+                    <div class="sprite__weapon ${weaponClass}"></div>
+                </div>
+            </div>
+        `;
+    },
+    
+    /**
+     * Set sprite animation state
+     */
+    setSpriteAnimation(spriteContainer, animationClass) {
+        const sprite = spriteContainer.querySelector('.sprite');
+        if (!sprite) return;
+        
+        // Remove all animation classes
+        sprite.classList.remove('sprite--idle', 'sprite--walk', 'sprite--attack', 'sprite--hit', 'sprite--death', 'sprite--victory');
+        
+        // Force reflow to restart animation
+        void sprite.offsetHeight;
+        
+        // Add new animation class
+        sprite.classList.add(`sprite--${animationClass}`);
+    },
+};
+
+/* ===========================================
+   COMBAT SYSTEM
+   =========================================== */
+const Combat = {
+    /**
+     * Calculate hit chance
+     */
+    calculateHitChance(attacker, defender) {
+        const { BASE_HIT_CHANCE, HIT_CHANCE_PER_POINT, MIN_HIT_CHANCE, MAX_HIT_CHANCE } = CONFIG.COMBAT;
+        const accuracyBonus = attacker.stats.acc * HIT_CHANCE_PER_POINT;
+        const agilityPenalty = defender.stats.agi * HIT_CHANCE_PER_POINT;
+        const hitChance = BASE_HIT_CHANCE + accuracyBonus - agilityPenalty;
+        return Utils.clamp(hitChance, MIN_HIT_CHANCE, MAX_HIT_CHANCE);
+    },
+    
+    /**
+     * Check if attack is critical
+     */
+    isCritical(attacker) {
+        const critChance = attacker.stats.agi * CONFIG.COMBAT.CRIT_CHANCE_MULTIPLIER;
+        return Utils.random(0, 100) < critChance;
+    },
+    
+    /**
+     * Calculate damage
+     */
+    calculateDamage(attacker, defender, isCrit) {
+        const { BASE_DAMAGE, CRIT_DAMAGE_MULTIPLIER, DEFENSE_REDUCTION, MIN_DAMAGE } = CONFIG.COMBAT;
+        const multiplier = isCrit ? CRIT_DAMAGE_MULTIPLIER : 1;
+        const rawDamage = (BASE_DAMAGE + attacker.stats.str) * multiplier;
+        const mitigation = defender.stats.def * DEFENSE_REDUCTION;
+        return Math.max(MIN_DAMAGE, Math.floor(rawDamage - mitigation));
+    },
+    
+    /**
+     * Calculate initiative
+     */
+    calculateInitiative(fighter) {
+        return fighter.stats.agi + Utils.random(0, 10);
+    },
+    
+    /**
+     * Perform attack roll
+     */
+    performAttack(attacker, defender) {
+        const hitChance = this.calculateHitChance(attacker, defender);
+        const roll = Utils.random(0, 100);
+        
+        if (roll > hitChance) {
+            return { hit: false, damage: 0, crit: false };
+        }
+        
+        const isCrit = this.isCritical(attacker);
+        const damage = this.calculateDamage(attacker, defender, isCrit);
+        
+        return { hit: true, damage, crit: isCrit };
+    },
+};
+
+/* ===========================================
+   VISUAL EFFECTS
+   =========================================== */
+const Effects = {
+    /**
+     * Show floating damage number
+     */
+    showDamage(element, amount, isCrit) {
+        element.textContent = amount;
+        element.style.color = isCrit ? '#ff1744' : '#8b1a1a';
+        element.style.fontSize = isCrit ? '2.8rem' : '2rem';
+        element.classList.remove('fighter__damage--animate');
+        void element.offsetHeight;
+        element.classList.add('fighter__damage--animate');
+    },
+    
+    /**
+     * Show floating text
+     */
+    showText(element, text, color = '#1565c0') {
+        element.textContent = text;
+        element.style.color = color;
+        element.style.fontSize = '1.4rem';
+        element.classList.remove('fighter__damage--animate');
+        void element.offsetHeight;
+        element.classList.add('fighter__damage--animate');
+    },
+    
+    /**
+     * Spawn blood particles
+     */
+    spawnParticles(targetElement) {
+        const arena = DOM.elements.arena;
+        const rect = targetElement.getBoundingClientRect();
+        const arenaRect = arena.getBoundingClientRect();
+        
+        const startX = rect.left - arenaRect.left + rect.width / 2;
+        const startY = rect.top - arenaRect.top + rect.height / 3;
+        
+        for (let i = 0; i < CONFIG.PARTICLES.COUNT; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            
+            const size = Utils.randomInt(CONFIG.PARTICLES.MIN_SIZE, CONFIG.PARTICLES.MAX_SIZE);
+            particle.style.cssText = `
+                left: ${startX}px;
+                top: ${startY}px;
+                width: ${size}px;
+                height: ${size}px;
+                background: #8b1a1a;
+            `;
+            
+            arena.appendChild(particle);
+            
+            const velocityX = Utils.random(-60, 60);
+            const velocityY = Utils.random(-80, -20);
+            
+            particle.animate([
+                { transform: 'translate(0, 0)', opacity: 1 },
+                { transform: `translate(${velocityX}px, ${velocityY + 80}px)`, opacity: 0 },
+            ], {
+                duration: CONFIG.PARTICLES.DURATION,
+                easing: 'cubic-bezier(0, 0.9, 0.57, 1)',
+                fill: 'forwards',
+            }).onfinish = () => particle.remove();
+        }
+    },
+    
+    /**
+     * Update health bar
+     */
+    updateHealthBar(element, currentHp, maxHp) {
+        const percent = (currentHp / maxHp) * 100;
+        element.style.width = `${percent}%`;
+        
+        if (percent < 30) {
+            element.classList.add('fighter__health-bar--low');
+        } else {
+            element.classList.remove('fighter__health-bar--low');
+        }
+    },
+};
+
+/* ===========================================
+   GAME STATE & CONTROLLER
+   =========================================== */
+const Game = {
+    // State
+    state: {
+        selectedGladiator: null,
+        player: null,
+        enemy: null,
+        turnCount: 0,
+        battleInterval: null,
+        isRunning: false,
+        stats: {
+            player: { damage: 0, crits: 0, dodges: 0, misses: 0 },
+            enemy: { damage: 0, crits: 0, dodges: 0, misses: 0 },
+        },
+    },
+    
+    /**
+     * Initialize the game
+     */
+    init() {
+        this.renderGladiatorCards();
+        this.bindEvents();
+    },
+    
+    /**
+     * Render gladiator selection cards
+     */
+    renderGladiatorCards() {
+        const grid = DOM.elements.gladiatorGrid;
+        grid.innerHTML = '';
+        
+        GLADIATORS.forEach((gladiator, index) => {
+            const card = document.createElement('div');
+            card.className = 'gladiator-card';
+            card.dataset.index = index;
+            
+            card.innerHTML = `
+                <span class="gladiator-card__icon">${gladiator.icon}</span>
+                <div class="gladiator-card__name">${gladiator.name}</div>
+                <div class="gladiator-card__stats">
+                    STR ${gladiator.stats.str} · AGI ${gladiator.stats.agi}<br>
+                    DEF ${gladiator.stats.def} · HP ${gladiator.stats.hp}
+                </div>
+            `;
+            
+            grid.appendChild(card);
+        });
+    },
+    
+    /**
+     * Bind event handlers
+     */
+    bindEvents() {
+        // Gladiator selection
+        DOM.elements.gladiatorGrid.addEventListener('click', (e) => {
+            const card = e.target.closest('.gladiator-card');
+            if (!card) return;
+            
+            this.selectGladiator(parseInt(card.dataset.index));
+        });
+        
+        // Fight button
+        DOM.elements.btnFight.addEventListener('click', () => {
+            this.startBattle();
+        });
+    },
+    
+    /**
+     * Select a gladiator
+     */
+    selectGladiator(index) {
+        const gladiator = GLADIATORS[index];
+        this.state.selectedGladiator = gladiator;
+        
+        // Update card visuals
+        document.querySelectorAll('.gladiator-card').forEach((card, i) => {
+            card.classList.toggle('gladiator-card--selected', i === index);
+        });
+        
+        // Update info text
+        DOM.elements.selectionInfo.innerHTML = `
+            <strong>${gladiator.name}</strong>: ${gladiator.description}
+        `;
+        
+        // Enable fight button
+        DOM.elements.btnFight.disabled = false;
+    },
+    
+    /**
+     * Start the battle sequence
+     */
+    async startBattle() {
+        // Cleanup any existing battle
+        this.cleanup();
+        
+        // Initialize fighters
+        const playerGladiator = this.state.selectedGladiator;
+        const enemyGladiator = Utils.randomElement(GLADIATORS);
+        
+        this.state.player = {
+            ...playerGladiator,
+            currentHp: playerGladiator.stats.hp,
+            maxHp: playerGladiator.stats.hp,
+        };
+        
+        this.state.enemy = {
+            ...enemyGladiator,
+            currentHp: enemyGladiator.stats.hp,
+            maxHp: enemyGladiator.stats.hp,
+            name: `${enemyGladiator.name} (CPU)`,
+        };
+        
+        // Reset stats
+        this.state.turnCount = 0;
+        this.state.stats = {
+            player: { damage: 0, crits: 0, dodges: 0, misses: 0 },
+            enemy: { damage: 0, crits: 0, dodges: 0, misses: 0 },
+        };
+        
+        // Setup UI
+        this.setupBattleUI();
+        
+        // Show battle screen
+        DOM.showScreen('battle');
+        
+        // Run battle sequence
+        await this.runBattleSequence();
+    },
+    
+    /**
+     * Setup battle UI elements
+     */
+    setupBattleUI() {
+        const { player, enemy } = this.state;
+        
+        // Set names
+        DOM.elements.playerName.textContent = player.name;
+        DOM.elements.enemyName.textContent = enemy.name;
+        
+        // Render sprites
+        DOM.elements.playerSprite.innerHTML = DOM.createSprite(player, false);
+        DOM.elements.enemySprite.innerHTML = DOM.createSprite(enemy, true);
+        
+        // Reset health bars
+        Effects.updateHealthBar(DOM.elements.playerHealth, player.currentHp, player.maxHp);
+        Effects.updateHealthBar(DOM.elements.enemyHealth, enemy.currentHp, enemy.maxHp);
+        
+        // Reset fighter positions
+        DOM.elements.fighterPlayer.classList.remove('fighter--entered');
+        DOM.elements.fighterEnemy.classList.remove('fighter--entered');
+        
+        // Set walk animation
+        DOM.setSpriteAnimation(DOM.elements.playerSprite, 'walk');
+        DOM.setSpriteAnimation(DOM.elements.enemySprite, 'walk');
+        
+        // Clear combat log
+        DOM.elements.combatLog.innerHTML = '';
+        this.log('The gates open...', 'system');
+        
+        // Hide VS badge
+        DOM.elements.vsBadge.classList.remove('arena__vs--visible');
+    },
+    
+    /**
+     * Run the battle sequence
+     */
+    async runBattleSequence() {
+        const { TIMING } = CONFIG;
+        
+        // Walk in
+        await Utils.wait(TIMING.WALK_IN_DELAY);
+        DOM.elements.fighterPlayer.classList.add('fighter--entered');
+        DOM.elements.fighterEnemy.classList.add('fighter--entered');
+        DOM.elements.vsBadge.classList.add('arena__vs--visible');
+        this.log('The gladiators enter the arena!', 'system');
+        
+        // Start fighting
+        await Utils.wait(TIMING.FIGHT_START_DELAY);
+        DOM.elements.vsBadge.classList.remove('arena__vs--visible');
+        DOM.setSpriteAnimation(DOM.elements.playerSprite, 'idle');
+        DOM.setSpriteAnimation(DOM.elements.enemySprite, 'idle');
+        this.log('<strong>FIGHT!</strong>', 'system');
+        
+        // Begin combat loop
+        this.state.isRunning = true;
+        this.runCombatLoop();
+    },
+    
+    /**
+     * Run the combat loop
+     */
+    runCombatLoop() {
+        this.state.battleInterval = setInterval(() => {
+            if (!this.state.isRunning) return;
+            this.executeTurn();
+        }, CONFIG.TIMING.TURN_INTERVAL);
+    },
+    
+    /**
+     * Execute a single combat turn
+     */
+    executeTurn() {
+        const { player, enemy } = this.state;
+        this.state.turnCount++;
+        
+        // Determine initiative
+        const playerInit = Combat.calculateInitiative(player);
+        const enemyInit = Combat.calculateInitiative(enemy);
+        
+        if (playerInit >= enemyInit) {
+            this.executeAttack('player', 'enemy', 0);
+            if (enemy.currentHp > 0) {
+                this.executeAttack('enemy', 'player', CONFIG.TIMING.ATTACK_DURATION + 200);
+            }
+        } else {
+            this.executeAttack('enemy', 'player', 0);
+            if (player.currentHp > 0) {
+                this.executeAttack('player', 'enemy', CONFIG.TIMING.ATTACK_DURATION + 200);
+            }
+        }
+    },
+    
+    /**
+     * Execute an attack
+     */
+    executeAttack(attackerId, defenderId, delay) {
+        setTimeout(() => {
+            if (!this.state.isRunning) return;
+            
+            const attacker = this.state[attackerId];
+            const defender = this.state[defenderId];
+            
+            if (attacker.currentHp <= 0 || defender.currentHp <= 0) return;
+            
+            const isPlayer = attackerId === 'player';
+            const attackerEl = isPlayer ? DOM.elements.fighterPlayer : DOM.elements.fighterEnemy;
+            const defenderEl = isPlayer ? DOM.elements.fighterEnemy : DOM.elements.fighterPlayer;
+            const attackerSprite = isPlayer ? DOM.elements.playerSprite : DOM.elements.enemySprite;
+            const defenderSprite = isPlayer ? DOM.elements.enemySprite : DOM.elements.playerSprite;
+            const defenderDamageEl = isPlayer ? DOM.elements.enemyDamage : DOM.elements.playerDamage;
+            const defenderHealthEl = isPlayer ? DOM.elements.enemyHealth : DOM.elements.playerHealth;
+            
+            // Perform attack
+            const result = Combat.performAttack(attacker, defender);
+            
+            // Lunge animation
+            const lungeDistance = CONFIG.MOVEMENT.LUNGE_DISTANCE;
+            attackerEl.style.transition = `transform ${CONFIG.TIMING.LUNGE_DURATION}ms ease-out`;
+            
+            if (isPlayer) {
+                attackerEl.style.transform = `translateX(${lungeDistance}px)`;
+            } else {
+                attackerEl.style.transform = `translateX(-${lungeDistance}px)`;
+            }
+            
+            // Attack animation
+            DOM.setSpriteAnimation(attackerSprite, 'attack');
+            
+            // Reset lunge
+            setTimeout(() => {
+                attackerEl.style.transform = '';
+                DOM.setSpriteAnimation(attackerSprite, 'idle');
+            }, CONFIG.TIMING.LUNGE_DURATION);
+            
+            // Process result
+            setTimeout(() => {
+                if (result.hit) {
+                    // Apply damage
+                    defender.currentHp = Math.max(0, defender.currentHp - result.damage);
+                    
+                    // Update stats
+                    this.state.stats[attackerId].damage += result.damage;
+                    if (result.crit) this.state.stats[attackerId].crits++;
+                    
+                    // Visual feedback
+                    DOM.setSpriteAnimation(defenderSprite, 'hit');
+                    Effects.showDamage(defenderDamageEl, result.damage, result.crit);
+                    Effects.spawnParticles(defenderEl);
+                    Effects.updateHealthBar(defenderHealthEl, defender.currentHp, defender.maxHp);
+                    
+                    setTimeout(() => {
+                        if (defender.currentHp > 0) {
+                            DOM.setSpriteAnimation(defenderSprite, 'idle');
+                        }
+                    }, 400);
+                    
+                    // Log
+                    const logClass = result.crit ? 'crit' : 'hit';
+                    const critText = result.crit ? ' <strong>CRITICAL!</strong>' : '';
+                    this.log(`${attacker.name} strikes for <span class="combat-log__${logClass}">${result.damage} damage</span>${critText}`, 'hit');
+                    
+                } else {
+                    // Miss
+                    this.state.stats[attackerId].misses++;
+                    this.state.stats[defenderId].dodges++;
+                    
+                    // Dodge animation
+                    const dodgeDistance = CONFIG.MOVEMENT.DODGE_DISTANCE;
+                    defenderEl.style.transition = `transform 200ms ease-out`;
+                    
+                    if (isPlayer) {
+                        defenderEl.style.transform = `translateX(${dodgeDistance}px)`;
+                    } else {
+                        defenderEl.style.transform = `translateX(-${dodgeDistance}px)`;
+                    }
+                    
+                    setTimeout(() => {
+                        defenderEl.style.transform = '';
+                    }, 200);
+                    
+                    Effects.showText(defenderDamageEl, 'DODGE');
+                    this.log(`${attacker.name} attacks... <span class="combat-log__miss">Miss!</span>`, 'miss');
+                }
+                
+                // Check for victory
+                this.checkVictory();
+                
+            }, CONFIG.TIMING.HIT_DELAY);
+            
+        }, delay);
+    },
+    
+    /**
+     * Check for victory condition
+     */
+    checkVictory() {
+        const { player, enemy } = this.state;
+        
+        if (player.currentHp <= 0 || enemy.currentHp <= 0) {
+            this.state.isRunning = false;
+            clearInterval(this.state.battleInterval);
+            
+            const playerWon = player.currentHp > 0;
+            const loserSprite = playerWon ? DOM.elements.enemySprite : DOM.elements.playerSprite;
+            const winnerSprite = playerWon ? DOM.elements.playerSprite : DOM.elements.enemySprite;
+            
+            DOM.setSpriteAnimation(loserSprite, 'death');
+            
+            setTimeout(() => {
+                DOM.setSpriteAnimation(winnerSprite, 'victory');
+            }, 500);
+            
+            this.log(playerWon ? 
+                '<strong>VICTORY! The crowd roars!</strong>' : 
+                '<strong>DEFEAT! You have fallen...</strong>', 
+                'system'
+            );
+            
+            setTimeout(() => this.showResults(playerWon), CONFIG.TIMING.RESULTS_DELAY);
+        }
+    },
+    
+    /**
+     * Show results screen
+     */
+    showResults(playerWon) {
+        DOM.showScreen('results');
+        
+        const titleEl = DOM.elements.resultsTitle;
+        titleEl.textContent = playerWon ? 'VICTORY!' : 'DEFEAT';
+        titleEl.className = `results__title results__title--${playerWon ? 'victory' : 'defeat'}`;
+        
+        const { player, enemy } = this.state.stats;
+        
+        DOM.elements.statsBody.innerHTML = `
+            <tr>
+                <td>Total Damage</td>
+                <td>${player.damage}</td>
+                <td>${enemy.damage}</td>
+            </tr>
+            <tr>
+                <td>Critical Hits</td>
+                <td>${player.crits}</td>
+                <td>${enemy.crits}</td>
+            </tr>
+            <tr>
+                <td>Successful Dodges</td>
+                <td>${player.dodges}</td>
+                <td>${enemy.dodges}</td>
+            </tr>
+            <tr>
+                <td>Missed Attacks</td>
+                <td>${player.misses}</td>
+                <td>${enemy.misses}</td>
+            </tr>
+            <tr>
+                <td>Total Turns</td>
+                <td colspan="2">${this.state.turnCount}</td>
+            </tr>
+        `;
+    },
+    
+    /**
+     * Add entry to combat log
+     */
+    log(message, type = 'system') {
+        const entry = document.createElement('div');
+        entry.className = `combat-log__entry combat-log__${type}`;
+        entry.innerHTML = message;
+        DOM.elements.combatLog.appendChild(entry);
+        DOM.elements.combatLog.scrollTop = DOM.elements.combatLog.scrollHeight;
+    },
+    
+    /**
+     * Cleanup battle state
+     */
+    cleanup() {
+        this.state.isRunning = false;
+        if (this.state.battleInterval) {
+            clearInterval(this.state.battleInterval);
+            this.state.battleInterval = null;
+        }
+    },
+    
+    /**
+     * Reset to selection screen
+     */
+    reset() {
+        this.cleanup();
+        DOM.showScreen('selection');
+    },
+};
+
+// Initialize game when DOM is ready
+document.addEventListener('DOMContentLoaded', () => Game.init());
+</script>
+
+</body>
+</html>
