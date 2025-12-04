@@ -204,6 +204,19 @@ export class Fighter {
   }
 
   /**
+   * Get the center position of the fighter for effects
+   */
+  getPosition(): { x: number; y: number } {
+    const rect = this.fighterEl.getBoundingClientRect();
+    const arenaRect = this.container.getBoundingClientRect();
+
+    return {
+      x: rect.left - arenaRect.left + rect.width / 2,
+      y: rect.top - arenaRect.top + rect.height / 2,
+    };
+  }
+
+  /**
    * Dodge animation
    */
   dodge(): void {

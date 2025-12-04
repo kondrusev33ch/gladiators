@@ -6,6 +6,7 @@ import { Fighter as FighterComponent } from '../arena/Fighter';
 import { CombatLog } from '../ui/CombatLog';
 import { createElement, $required } from '../../utils/dom';
 import { eventBus, EVENTS } from '../../core/EventBus';
+import { Effects } from '../../systems/Effects';
 import type { Fighter } from '../../types/gladiator.types';
 
 export class BattleScreen {
@@ -15,6 +16,7 @@ export class BattleScreen {
   private playerFighter: FighterComponent | null = null;
   private enemyFighter: FighterComponent | null = null;
   private combatLog: CombatLog | null = null;
+  private effects: Effects | null = null;
 
   constructor(containerId: string = '#screen-battle') {
     this.container = $required(containerId);
@@ -31,6 +33,11 @@ export class BattleScreen {
 
     // Create arena
     this.arenaElement = this.createArena();
+
+    // Initialize effects system
+    if (this.arenaElement) {
+      this.effects = new Effects(this.arenaElement);
+    }
 
     // Create combat log container with fixed height
     const logContainer = createElement('div', {
@@ -131,10 +138,20 @@ export class BattleScreen {
    */
   private showVS(): void {
     if (this.vsElement) {
+      // Add animation class
+      this.vsElement.classList.add('arena__vs--show');
       this.vsElement.style.opacity = '1';
+
+      // Fade out after animation completes
       setTimeout(() => {
         if (this.vsElement) {
           this.vsElement.style.opacity = '0';
+          this.vsElement.style.transition = 'opacity 0.5s ease-out';
+
+          // Remove animation class after fade out
+          setTimeout(() => {
+            this.vsElement?.classList.remove('arena__vs--show');
+          }, 500);
         }
       }, 1500);
     }
@@ -162,6 +179,13 @@ export class BattleScreen {
   }
 
   /**
+   * Get effects system
+   */
+  getEffects(): Effects | null {
+    return this.effects;
+  }
+
+  /**
    * Reset the screen
    */
   reset(): void {
@@ -170,6 +194,7 @@ export class BattleScreen {
     this.playerFighter = null;
     this.enemyFighter = null;
     this.combatLog?.clear();
+    this.effects?.clear();
   }
 
   /**
@@ -177,6 +202,7 @@ export class BattleScreen {
    */
   destroy(): void {
     this.reset();
+    this.effects?.destroy();
     this.container.innerHTML = '';
   }
 }

@@ -207,11 +207,11 @@ type GameState = 'selection' | 'battle' | 'results';
 - [ ] Screen transitions
 
 ### Phase 6: Visual Effects
-- [ ] Port CSS animations to separate file
-- [ ] Implement particle system
-- [ ] Floating damage numbers
-- [ ] Fighter movement animations
-- [ ] VS badge animation
+- [x] Port CSS animations to separate file
+- [x] Implement particle system
+- [x] Floating damage numbers
+- [x] Fighter movement animations
+- [x] VS badge animation
 
 ### Phase 7: Polish & Testing
 - [ ] Responsive design testing

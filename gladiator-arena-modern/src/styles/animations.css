@@ -53,6 +53,11 @@
   animation: damageFloat 1.2s ease-out forwards;
 }
 
+/* VS Badge Animation */
+.arena__vs--show {
+  animation: vsAppear 0.5s ease-out forwards, vsPulse 0.3s ease-in-out 0.5s 2;
+}
+
 /* ============================================
    KEYFRAME DEFINITIONS
    ============================================ */
@@ -180,5 +185,25 @@
     opacity: 0;
     top: -120px;
     transform: translateX(-50%) scale(1);
+  }
+}
+
+@keyframes vsAppear {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes vsPulse {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.1);
   }
 }

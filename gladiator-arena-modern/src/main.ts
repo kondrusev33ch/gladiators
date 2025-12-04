@@ -139,6 +139,7 @@ function executeAttack(
   // Process result after hit delay
   setTimeout(() => {
     const log = battleScreen.getCombatLog();
+    const effects = battleScreen.getEffects();
 
     if (result.hit) {
       // Apply damage
@@ -152,6 +153,10 @@ function executeAttack(
       defender.hit();
       defender.showDamage(result.damage, result.crit);
       defender.updateHealth();
+
+      // Particle effects - blood on hit
+      const pos = defender.getPosition();
+      effects?.blood(pos.x, pos.y, result.crit ? 12 : 8);
 
       // Log
       const logClass = result.crit ? 'crit' : 'hit';
@@ -199,20 +204,31 @@ function checkVictory(): void {
     }
 
     const playerWon = playerData.currentHp > 0;
+    const effects = battleScreen.getEffects();
 
     // Death and victory animations
     if (playerWon) {
       enemyFighter.death();
       setTimeout(() => {
         const pf = battleScreen.getPlayerFighter();
-        if (pf) pf.victory();
+        if (pf) {
+          pf.victory();
+          // Victory sparkles
+          const pos = pf.getPosition();
+          effects?.sparkle(pos.x, pos.y, 15);
+        }
       }, 500);
       log?.log('<strong>VICTORY! The crowd roars!</strong>', 'system');
     } else {
       playerFighter.death();
       setTimeout(() => {
         const ef = battleScreen.getEnemyFighter();
-        if (ef) ef.victory();
+        if (ef) {
+          ef.victory();
+          // Victory sparkles
+          const pos = ef.getPosition();
+          effects?.sparkle(pos.x, pos.y, 15);
+        }
       }, 500);
       log?.log('<strong>DEFEAT! You have fallen...</strong>', 'system');
     }
