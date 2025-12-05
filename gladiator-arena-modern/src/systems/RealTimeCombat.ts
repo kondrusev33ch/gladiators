@@ -5,10 +5,14 @@
 import type { Fighter as FighterData } from '../types/gladiator.types';
 import type {
   ActionState,
+  AttackState,
   AttackTiming,
+  BlockState,
   Hitbox,
   Hurtbox,
+  ParryState,
   BattleStats,
+  StaggerState,
 } from '../types/combat.types';
 import { combatSystem } from './Combat';
 import { FixedTimestep } from '../core/FixedTimestep';
@@ -31,6 +35,7 @@ interface RuntimeFighter {
   hitbox: Hitbox;
   hurtbox: Hurtbox;
   invulnerableUntil: number;
+  nextEvadeAllowed: number;
 }
 
 interface CombatContext {
@@ -45,6 +50,15 @@ interface CombatContext {
   effects: Effects | null;
   onBattleEnd: (winner: FighterId) => void;
 }
+
+type StaggerReason = 'guard-break' | 'impact' | 'parried';
+
+const isAttackAction = (action: ActionState | null): action is AttackState =>
+  !!action && action.name === 'attack';
+const isBlockAction = (action: ActionState | null): action is BlockState =>
+  !!action && action.name === 'block';
+const isParryAction = (action: ActionState | null): action is ParryState =>
+  !!action && action.name === 'parry';
 
 export class RealTimeCombat {
   private loop = new FixedTimestep({
@@ -108,6 +122,7 @@ export class RealTimeCombat {
         ...REALTIME.HURTBOX,
       },
       invulnerableUntil: 0,
+      nextEvadeAllowed: 0,
     };
   }
 
@@ -152,6 +167,9 @@ export class RealTimeCombat {
     this.regenMeters(player, stepMs);
     this.regenMeters(enemy, stepMs);
 
+    this.evaluateDefense(player, enemy);
+    this.evaluateDefense(enemy, player);
+
     this.advanceAction(player, enemy, stepMs);
     this.advanceAction(enemy, player, stepMs);
 
@@ -160,6 +178,9 @@ export class RealTimeCombat {
       this.handleNavigation(enemy, player, this.navAccumulator);
       this.navAccumulator = 0;
     }
+
+    if (!player.action) this.tryQueueAttack(player, enemy);
+    if (!enemy.action) this.tryQueueAttack(enemy, player);
 
     if (this.spacingAccumulator >= REALTIME.SPACING.UPDATE_INTERVAL) {
       this.emitSpacing();
@@ -175,13 +196,9 @@ export class RealTimeCombat {
 
     this.updateStamina(fighter, fighter.data.stamina + staminaGain);
     this.updateInitiative(fighter, fighter.data.initiative + initiativeGain);
-
-    if (!fighter.action) {
-      this.tryQueueAttack(fighter);
-    }
   }
 
-  private tryQueueAttack(fighter: RuntimeFighter): void {
+  private tryQueueAttack(fighter: RuntimeFighter, opponent: RuntimeFighter): void {
     if (!this.runtime || !this.context) return;
 
     const { ATTACK } = REALTIME;
@@ -190,6 +207,15 @@ export class RealTimeCombat {
       fighter.data.initiative < fighter.data.initiativeThreshold ||
       fighter.data.stamina < ATTACK.staminaCost
     ) {
+      return;
+    }
+
+    const distance = this.getDistance(fighter, opponent);
+    const reach = this.getAttackReach(ATTACK);
+    const inRange = distance <= reach + 8;
+    const closingSoon = distance <= REALTIME.SPACING.SWEET_MAX + 25;
+
+    if (!inRange && !closingSoon) {
       return;
     }
 
@@ -217,6 +243,28 @@ export class RealTimeCombat {
     const action = attacker.action;
     if (!action) return;
 
+    switch (action.name) {
+      case 'attack':
+        this.advanceAttack(attacker, defender, action, stepMs);
+        break;
+      case 'block':
+        this.advanceBlock(attacker, action, stepMs);
+        break;
+      case 'parry':
+        this.advanceParry(attacker, action, stepMs);
+        break;
+      case 'stagger':
+        this.advanceStagger(attacker, action, stepMs);
+        break;
+    }
+  }
+
+  private advanceAttack(
+    attacker: RuntimeFighter,
+    defender: RuntimeFighter,
+    action: AttackState,
+    stepMs: number
+  ): void {
     action.elapsed += stepMs;
 
     switch (action.phase) {
@@ -250,12 +298,80 @@ export class RealTimeCombat {
     }
   }
 
+  private advanceBlock(
+    fighter: RuntimeFighter,
+    action: BlockState,
+    stepMs: number
+  ): void {
+    action.elapsed += stepMs;
+
+    if (action.phase === 'windup' && action.elapsed >= action.config.windup) {
+      action.phase = 'active';
+      fighter.component.block();
+    }
+
+    if (action.phase === 'active') {
+      const drain = (action.config.staminaDrainPerSecond / 1000) * stepMs;
+      this.spendStamina(fighter, drain);
+
+      if (fighter.data.stamina <= 0) {
+        this.triggerGuardBreak(fighter, null);
+        return;
+      }
+
+      if (action.elapsed >= action.config.windup + action.config.active) {
+        action.phase = 'recovery';
+      }
+    }
+
+    if (
+      action.phase === 'recovery' &&
+      action.elapsed >= action.config.windup + action.config.active + action.config.recovery
+    ) {
+      fighter.action = null;
+      fighter.component.idle();
+    }
+  }
+
+  private advanceParry(
+    fighter: RuntimeFighter,
+    action: ParryState,
+    stepMs: number
+  ): void {
+    action.elapsed += stepMs;
+
+    if (action.phase === 'windup' && action.elapsed >= action.config.windup) {
+      action.phase = 'active';
+      fighter.component.parry();
+    }
+
+    if (action.phase === 'active' && action.elapsed >= action.config.windup + action.config.window) {
+      action.phase = 'recovery';
+    }
+
+    if (
+      action.phase === 'recovery' &&
+      action.elapsed >= action.config.windup + action.config.window + action.config.recovery
+    ) {
+      fighter.action = null;
+      fighter.component.idle();
+    }
+  }
+
+  private advanceStagger(fighter: RuntimeFighter, action: StaggerState, stepMs: number): void {
+    action.elapsed += stepMs;
+    if (action.elapsed >= action.duration) {
+      fighter.action = null;
+      fighter.component.idle();
+    }
+  }
+
   private checkCollision(
     attacker: RuntimeFighter,
     defender: RuntimeFighter,
     action: ActionState
   ): void {
-    if (action.hasHit) return;
+    if (!isAttackAction(action) || action.hasHit) return;
 
     const distance = this.getDistance(attacker, defender);
     const reach = this.getAttackReach(action.config);
@@ -264,20 +380,39 @@ export class RealTimeCombat {
 
     if (distance > reach) return;
 
+    const defense = defender.action;
+    if (isParryAction(defense) && defense.phase === 'active') {
+      action.hasHit = true;
+      this.handleParry(defender, attacker, defense);
+      return;
+    }
+
     const result = combatSystem.performAttack(attacker.data, defender.data);
     action.hasHit = true;
 
-    if (result.hit) {
-      this.handleHit(attacker, defender, result.damage, result.crit);
-    } else {
+    if (!result.hit) {
       this.handleMiss(attacker, defender);
+      return;
     }
+
+    if (isBlockAction(defense) && defense.phase === 'active') {
+      this.handleBlock(defender, attacker, defense, result.damage, result.crit);
+      return;
+    }
+
+    this.handleHit(attacker, defender, result.damage, result.crit);
   }
 
   private getDistance(a: RuntimeFighter, b: RuntimeFighter): number {
     const aPos = a.component.getPosition();
     const bPos = b.component.getPosition();
     return Math.abs(aPos.x - bPos.x);
+  }
+
+  private getBaseDistance(a: RuntimeFighter, b: RuntimeFighter): number {
+    const aPos = a.component.getCenterX();
+    const bPos = b.component.getCenterX();
+    return Math.abs(aPos - bPos);
   }
 
   private getAttackReach(timing: AttackTiming): number {
@@ -291,8 +426,10 @@ export class RealTimeCombat {
   ): void {
     if (!this.context || fighter.action || fighter.data.stamina <= 2) return;
 
-    const distance = this.getDistance(fighter, opponent);
-    const opponentPos = opponent.component.getPosition().x;
+    // Use the fighters' logical positions (ignoring temporary animation impulses)
+    // so footwork decisions aren't overreacting to attack lunges.
+    const distance = this.getBaseDistance(fighter, opponent);
+    const opponentPos = opponent.component.getCenterX();
     const dtSeconds = elapsedMs / 1000;
 
     const forwardStep = Math.min(
@@ -329,7 +466,8 @@ export class RealTimeCombat {
 
   private emitSpacing(): void {
     if (!this.runtime) return;
-    const distance = this.getDistance(this.runtime.player, this.runtime.enemy);
+    // Spacing UI should reflect stable positions, not transient attack lunges
+    const distance = this.getBaseDistance(this.runtime.player, this.runtime.enemy);
     const spacing: SpacingStatus = {
       distance,
       player: this.getSpacingBand(distance),
@@ -346,23 +484,156 @@ export class RealTimeCombat {
     return 'out-of-range';
   }
 
+  private canDefensivelyCancel(action: ActionState | null): boolean {
+    if (!isAttackAction(action)) return false;
+
+    if (action.phase === 'windup' && action.elapsed <= action.config.cancel.windup) {
+      return true;
+    }
+
+    if (
+      action.phase === 'recovery' &&
+      action.elapsed >= action.config.recovery - action.config.cancel.recovery
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private evaluateDefense(defender: RuntimeFighter, attacker: RuntimeFighter): void {
+    if (!isAttackAction(attacker.action)) return;
+
+    const action = attacker.action;
+    const distance = this.getDistance(attacker, defender);
+    const reach = this.getAttackReach(action.config) + 12;
+
+    const threatActive = action.phase === 'active';
+    const threatImminent = action.phase === 'windup' && action.elapsed >= action.config.windup * 0.6;
+    if (!(threatActive || threatImminent) || distance > reach || defender.data.stamina <= 4) return;
+
+    if (defender.action) {
+      if (this.canDefensivelyCancel(defender.action)) {
+        defender.hitbox.active = false;
+        defender.action = null;
+        defender.component.idle();
+      } else {
+        return;
+      }
+    }
+
+    const canParry = defender.data.stamina >= REALTIME.PARRY.staminaCost;
+    const shouldParry = canParry && Math.random() > 0.55;
+
+    if (shouldParry) {
+      this.startParry(defender);
+    } else {
+      this.startBlock(defender);
+    }
+  }
+
+  private startBlock(fighter: RuntimeFighter): void {
+    const config = REALTIME.BLOCK;
+    fighter.hitbox.active = false;
+    fighter.action = {
+      name: 'block',
+      phase: 'windup',
+      elapsed: 0,
+      blockedDamage: 0,
+      config,
+    };
+    fighter.component.block();
+    fighter.component.showText('BLOCK');
+  }
+
+  private startParry(fighter: RuntimeFighter): void {
+    const config = REALTIME.PARRY;
+    if (fighter.data.stamina < config.staminaCost) return;
+
+    this.spendStamina(fighter, config.staminaCost);
+    fighter.hitbox.active = false;
+    fighter.action = {
+      name: 'parry',
+      phase: 'windup',
+      elapsed: 0,
+      counterReady: false,
+      config,
+    };
+    fighter.component.parry();
+    fighter.component.showText('PARRY');
+  }
+
+  private startStagger(
+    fighter: RuntimeFighter,
+    attacker: RuntimeFighter | null,
+    duration: number,
+    reason: StaggerReason,
+    force: number = 0
+  ): void {
+    fighter.hitbox.active = false;
+    fighter.action = {
+      name: 'stagger',
+      phase: 'stunned',
+      elapsed: 0,
+      duration,
+      reason,
+    };
+
+    const direction: Direction = attacker
+      ? fighter.component.getPosition().x < attacker.component.getPosition().x
+        ? 'left'
+        : 'right'
+      : Math.random() > 0.5
+        ? 'left'
+        : 'right';
+
+    const knockback = Math.min(
+      MOVEMENT.FOOTWORK.BACKPEDAL_SPEED * 0.45,
+      REALTIME.NAVIGATION.MAX_STEP * 2 + force * 0.35
+    );
+    fighter.component.stagger(direction, knockback);
+  }
+
+  private triggerGuardBreak(target: RuntimeFighter, attacker: RuntimeFighter | null): void {
+    this.startStagger(target, attacker, REALTIME.STAGGER.guardBreak, 'guard-break');
+    target.component.showText('GUARD BREAK');
+    eventBus.emit('combat:log', {
+      message: `${target.data.name}'s guard shatters!`,
+      type: 'system',
+    });
+  }
+
   private tryEvade(defender: RuntimeFighter, attacker: RuntimeFighter): void {
     if (!this.context || defender.action) return;
+
+    if (this.clock < defender.nextEvadeAllowed) return;
 
     const distance = this.getDistance(attacker, defender);
     const attackerPos = attacker.component.getPosition().x;
     const defenderPos = defender.component.getPosition().x;
     const awayDirection: Direction = defenderPos < attackerPos ? 'left' : 'right';
+    const closeThreat = distance < REALTIME.SPACING.SWEET_MIN;
 
-    if (distance < REALTIME.SPACING.DANGER && defender.data.stamina >= MOVEMENT.DASH.STAMINA_COST) {
+    if (
+      distance < REALTIME.SPACING.DANGER &&
+      defender.data.stamina >= MOVEMENT.DASH.STAMINA_COST &&
+      Math.random() < 0.4
+    ) {
       const dashed = this.executeDash(defender, awayDirection);
-      if (dashed) return;
+      if (dashed) {
+        defender.nextEvadeAllowed = this.clock + 700;
+        return;
+      }
     }
 
-    if (defender.data.stamina >= MOVEMENT.DODGE.STAMINA_COST) {
-      const odds = distance > REALTIME.SPACING.SWEET_MAX ? 0.4 : 0.65;
-      if (Math.random() < odds) {
-        this.executeDodge(defender, awayDirection);
+    if (
+      defender.data.stamina >= MOVEMENT.DODGE.STAMINA_COST &&
+      closeThreat &&
+      Math.random() < 0.22
+    ) {
+      const dodged = this.executeDodge(defender, awayDirection);
+      if (dodged) {
+        defender.nextEvadeAllowed = this.clock + 620;
       }
     }
   }
@@ -391,6 +662,112 @@ export class RealTimeCombat {
       this.context.stats[fighter.id].dodges += 1;
     }
     return true;
+  }
+
+  private handleBlock(
+    defender: RuntimeFighter,
+    attacker: RuntimeFighter,
+    action: BlockState,
+    incomingDamage: number,
+    crit: boolean
+  ): void {
+    if (!this.context) return;
+
+    const chip = Math.max(1, Math.floor(incomingDamage * action.config.chipDamageRatio));
+    combatSystem.applyDamage(defender.data, chip);
+    this.context.stats[attacker.id].damage += chip;
+
+    action.blockedDamage += incomingDamage;
+    this.spendStamina(defender, incomingDamage * 0.3);
+
+    const defenderComponent = defender.component;
+    defenderComponent.block();
+    defenderComponent.showDamage(chip, false);
+    defenderComponent.updateHealth();
+
+    eventBus.emit(EVENTS.HURTBOX_HIT, { target: defender.id, remainingHp: defender.data.currentHp });
+    eventBus.emit('combat:log', {
+      message: `${defender.data.name} blocks the strike${crit ? ' but the blow is heavy!' : ''}`,
+      type: crit ? 'hit' : 'system',
+    });
+
+    const guardBroken =
+      action.blockedDamage >= action.config.guardBreakThreshold || defender.data.stamina <= 1;
+
+    if (guardBroken) {
+      this.triggerGuardBreak(defender, attacker);
+    }
+
+    this.checkDefeat();
+  }
+
+  private handleParry(defender: RuntimeFighter, attacker: RuntimeFighter, action: ParryState): void {
+    if (!this.context) return;
+
+    action.counterReady = true;
+    action.phase = 'recovery';
+    this.context.stats[attacker.id].misses += 1;
+    this.context.stats[defender.id].dodges += 1;
+
+    const counterBase = combatSystem.calculateDamage(defender.data, attacker.data, false);
+    const counterDamage = Math.round(counterBase * action.config.counterMultiplier);
+    this.startStagger(attacker, defender, action.config.counterStun, 'parried');
+    this.handleCounter(defender, attacker, counterDamage);
+
+    eventBus.emit('combat:log', {
+      message: `${defender.data.name} parries and counters for <span class="combat-log__hit">${counterDamage} damage</span>!`,
+      type: 'hit',
+    });
+  }
+
+  private handleCounter(
+    attacker: RuntimeFighter,
+    defender: RuntimeFighter,
+    damage: number
+  ): void {
+    if (!this.context) return;
+
+    combatSystem.applyDamage(defender.data, damage);
+    const stats = this.context.stats[attacker.id];
+    stats.damage += damage;
+
+    const defenderComponent = defender.component;
+    defenderComponent.hit();
+    defenderComponent.showDamage(damage, true);
+    defenderComponent.updateHealth();
+
+    const effects = this.context.effects;
+    const pos = defenderComponent.getPosition();
+    effects?.impact(pos.x, pos.y, 12);
+
+    eventBus.emit(EVENTS.ATTACK_HIT, {
+      attacker: attacker.id,
+      defender: defender.id,
+      damage,
+      crit: false,
+    });
+    eventBus.emit(EVENTS.HURTBOX_HIT, { target: defender.id, remainingHp: defender.data.currentHp });
+
+    this.applyImpactStagger(attacker, defender, damage, true);
+    this.checkDefeat();
+  }
+
+  private applyImpactStagger(
+    attacker: RuntimeFighter,
+    defender: RuntimeFighter,
+    damage: number,
+    crit: boolean
+  ): void {
+    if (!this.runtime || defender.data.currentHp <= 0) return;
+
+    const force = damage + (crit ? 8 : 0);
+    if (force < REALTIME.STAGGER.threshold) return;
+
+    const duration =
+      force >= REALTIME.STAGGER.threshold + 8 || crit
+        ? REALTIME.STAGGER.heavyHit
+        : REALTIME.STAGGER.base;
+    this.startStagger(defender, attacker, duration, 'impact', force);
   }
 
   private handleHit(
@@ -430,6 +807,7 @@ export class RealTimeCombat {
     });
     eventBus.emit(EVENTS.HURTBOX_HIT, { target: defender.id, remainingHp: defender.data.currentHp });
 
+    this.applyImpactStagger(attacker, defender, damage, crit);
     this.checkDefeat();
   }
 

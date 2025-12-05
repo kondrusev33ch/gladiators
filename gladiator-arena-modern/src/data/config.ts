@@ -48,6 +48,32 @@ export const REALTIME: RealTimeCombatConfig = {
     range: 120,
     staminaCost: 26,
     initiativeCost: 60,
+    cancel: {
+      windup: 140,
+      recovery: 180,
+    },
+  },
+  BLOCK: {
+    windup: 90,
+    active: 520,
+    recovery: 260,
+    staminaDrainPerSecond: 18,
+    chipDamageRatio: 0.28,
+    guardBreakThreshold: 42,
+  },
+  PARRY: {
+    windup: 70,
+    window: 170,
+    recovery: 240,
+    staminaCost: 14,
+    counterMultiplier: 1.55,
+    counterStun: 420,
+  },
+  STAGGER: {
+    base: 240,
+    guardBreak: 520,
+    heavyHit: 380,
+    threshold: 16,
   },
   HURTBOX: {
     radius: 38,

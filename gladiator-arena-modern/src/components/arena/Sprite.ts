@@ -13,6 +13,9 @@ export type SpriteAnimation =
   | 'strafe'
   | 'dash'
   | 'attack'
+  | 'block'
+  | 'parry'
+  | 'stagger'
   | 'hit'
   | 'death'
   | 'victory';
@@ -74,6 +77,9 @@ export class Sprite {
       'sprite--strafe',
       'sprite--dash',
       'sprite--attack',
+      'sprite--block',
+      'sprite--parry',
+      'sprite--stagger',
       'sprite--hit',
       'sprite--death',
       'sprite--victory'

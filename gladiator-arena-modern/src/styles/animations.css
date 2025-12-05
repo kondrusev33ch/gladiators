@@ -60,9 +60,29 @@
   animation: attackStrike 0.35s ease-out forwards;
 }
 
+.sprite--block .sprite__arm--left {
+  animation: blockBrace 0.22s ease-out forwards;
+}
+
+.sprite--block .sprite__shield {
+  box-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+}
+
+.sprite--parry .sprite__arm--right {
+  animation: parryCatch 0.24s ease-out forwards;
+}
+
+.sprite--parry .sprite__weapon {
+  filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.65));
+}
+
 /* Hit Animation */
 .sprite--hit {
   animation: hitShake 0.4s ease-out;
+}
+
+.sprite--stagger {
+  animation: staggerReel 0.32s ease-out;
 }
 
 /* Death Animation */
@@ -191,6 +211,27 @@
   }
 }
 
+@keyframes blockBrace {
+  0% {
+    transform: rotate(0deg) translateY(0);
+  }
+  100% {
+    transform: rotate(-24deg) translateY(-2px);
+  }
+}
+
+@keyframes parryCatch {
+  0% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-70deg);
+  }
+  100% {
+    transform: rotate(40deg);
+  }
+}
+
 @keyframes hitShake {
   0% {
     transform: translateX(0);
@@ -209,6 +250,21 @@
   100% {
     transform: translateX(0);
     filter: none;
+  }
+}
+
+@keyframes staggerReel {
+  0% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px) rotate(-3deg);
+  }
+  50% {
+    transform: translateX(6px) rotate(3deg);
+  }
+  100% {
+    transform: translateX(0);
   }
 }
 

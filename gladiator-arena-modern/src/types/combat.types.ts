@@ -24,10 +24,12 @@ export interface CombatConfig {
   CRIT_DAMAGE_MULTIPLIER: number;
   BASE_DAMAGE: number;
   DEFENSE_REDUCTION: number;
-  MIN_DAMAGE: number;
+ MIN_DAMAGE: number;
 }
 
 export type ActionPhase = 'windup' | 'active' | 'recovery';
+
+export type ActionName = 'attack' | 'block' | 'parry' | 'stagger';
 
 export interface AttackTiming {
   windup: number;
@@ -36,15 +38,67 @@ export interface AttackTiming {
   range: number;
   staminaCost: number;
   initiativeCost: number;
+  cancel: {
+    windup: number;
+    recovery: number;
+  };
 }
 
-export interface ActionState {
-  name: 'attack';
-  phase: ActionPhase;
+export interface BlockTiming {
+  windup: number;
+  active: number;
+  recovery: number;
+  staminaDrainPerSecond: number;
+  chipDamageRatio: number;
+  guardBreakThreshold: number;
+}
+
+export interface ParryTiming {
+  windup: number;
+  window: number;
+  recovery: number;
+  staminaCost: number;
+  counterMultiplier: number;
+  counterStun: number;
+}
+
+export interface StaggerTiming {
+  base: number;
+  guardBreak: number;
+  heavyHit: number;
+  threshold: number;
+}
+
+export interface BaseActionState<Name extends ActionName = ActionName> {
+  name: Name;
   elapsed: number;
+}
+
+export interface AttackState extends BaseActionState<'attack'> {
+  phase: ActionPhase;
   hasHit: boolean;
   config: AttackTiming;
 }
+
+export interface BlockState extends BaseActionState<'block'> {
+  phase: Exclude<ActionPhase, 'active'> | 'active';
+  blockedDamage: number;
+  config: BlockTiming;
+}
+
+export interface ParryState extends BaseActionState<'parry'> {
+  phase: Exclude<ActionPhase, 'active'> | 'active';
+  counterReady: boolean;
+  config: ParryTiming;
+}
+
+export interface StaggerState extends BaseActionState<'stagger'> {
+  phase: 'stunned';
+  duration: number;
+  reason: 'guard-break' | 'impact' | 'parried';
+}
+
+export type ActionState = AttackState | BlockState | ParryState | StaggerState;
 
 export interface Hitbox {
   owner: 'player' | 'enemy';
@@ -75,6 +129,9 @@ export interface RealTimeCombatConfig {
     ATTACK_THRESHOLD: number;
   };
   ATTACK: AttackTiming;
+  BLOCK: BlockTiming;
+  PARRY: ParryTiming;
+  STAGGER: StaggerTiming;
   HURTBOX: Omit<Hurtbox, 'id'>;
   HITBOX: Pick<Hitbox, 'range' | 'width' | 'height' | 'offsetX'>;
   SPACING: {

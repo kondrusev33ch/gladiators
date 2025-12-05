@@ -145,6 +145,22 @@ export class Fighter {
     }, 300);
   }
 
+  block(): void {
+    this.sprite.setAnimation('block');
+  }
+
+  parry(): void {
+    this.sprite.setAnimation('parry');
+  }
+
+  stagger(direction: Direction, distance: number): void {
+    const delta = direction === 'left' ? -distance : distance;
+    this.moveBy(delta, 240, 'retreat');
+    this.setImpulse(delta * 0.2, 200);
+    this.sprite.setAnimation('stagger');
+    setTimeout(() => this.clearImpulse(), 220);
+  }
+
   /**
    * Play hit animation
    */
