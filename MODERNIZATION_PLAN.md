@@ -15,10 +15,10 @@
 - [x] Surface spacing advantages in the HUD (out of range, sweet spot, danger zone)
 
 ### Phase 3: Attacks, Blocks, and Parries
-- [ ] Build attack states with wind-up/active/recovery windows and cancel rules
-- [ ] Implement blocking with stamina drain, chip damage, and guard-break thresholds
-- [ ] Add parry/counter timings that open opponents to high-damage follow-ups
-- [ ] Integrate stagger/stun reactions based on impact force and angle
+- [x] Build attack states with wind-up/active/recovery windows and cancel rules
+- [x] Implement blocking with stamina drain, chip damage, and guard-break thresholds
+- [x] Add parry/counter timings that open opponents to high-damage follow-ups
+- [x] Integrate stagger/stun reactions based on impact force and angle
 
 ### Phase 4: Animation Overhaul
 - [ ] Move to state-driven animation controller with blending (idle ↔ move ↔ attack ↔ hit ↔ down)
