@@ -123,9 +123,20 @@ export const EVENTS = {
   ATTACK_START: 'attack:start',
   ATTACK_HIT: 'attack:hit',
   ATTACK_MISS: 'attack:miss',
+  HITBOX_ACTIVE: 'hitbox:active',
+  HURTBOX_HIT: 'hurtbox:hit',
   DAMAGE_DEALT: 'damage:dealt',
   FIGHTER_DEFEATED: 'fighter:defeated',
   BATTLE_END: 'battle:end',
+
+  // Frame-level
+  FRAME_START: 'frame:start',
+  FRAME_STEP: 'frame:step',
+  FRAME_END: 'frame:end',
+  COMBAT_TICK: 'combat:tick',
+  STAMINA_CHANGED: 'fighter:stamina',
+  INITIATIVE_CHANGED: 'fighter:initiative',
+  SPACING_UPDATE: 'spacing:update',
 
   // Results
   SHOW_RESULTS: 'results:show',

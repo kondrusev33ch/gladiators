@@ -9,9 +9,8 @@ import { TIMING } from '@data/config';
 import { randomElement } from './utils/math';
 import { wait } from './utils/async';
 import type { Fighter as FighterData } from './types/gladiator.types';
-import { combatSystem } from './systems/Combat';
 import { SelectionScreen, BattleScreen, ResultsScreen } from './components/screens';
-import type { Fighter as FighterComponent } from './components/arena/Fighter';
+import { realTimeCombat } from './systems/RealTimeCombat';
 
 /**
  * Screen instances
@@ -23,7 +22,6 @@ let resultsScreen: ResultsScreen;
 /**
  * Battle state
  */
-let battleInterval: number | null = null;
 let playerData: FighterData | null = null;
 let enemyData: FighterData | null = null;
 let turnCount = 0;
@@ -31,6 +29,14 @@ let battleStats = {
   player: { damage: 0, crits: 0, dodges: 0, misses: 0 },
   enemy: { damage: 0, crits: 0, dodges: 0, misses: 0 },
 };
+
+function resetBattleStats(): void {
+  turnCount = 0;
+  battleStats = {
+    player: { damage: 0, crits: 0, dodges: 0, misses: 0 },
+    enemy: { damage: 0, crits: 0, dodges: 0, misses: 0 },
+  };
+}
 
 /**
  * Start the battle
@@ -41,22 +47,13 @@ async function startBattle(): Promise<void> {
 
   // Reset battle screen to clear previous logs and fighters
   battleScreen.reset();
-
-  // Ensure previous intervals are cleared before starting a new battle
-  if (battleInterval) {
-    clearInterval(battleInterval);
-    battleInterval = null;
-  }
+  realTimeCombat.stop();
 
   // Transition to battle screen
   await stateMachine.transitionTo('battle');
 
   // Reset stats
-  turnCount = 0;
-  battleStats = {
-    player: { damage: 0, crits: 0, dodges: 0, misses: 0 },
-    enemy: { damage: 0, crits: 0, dodges: 0, misses: 0 },
-  };
+  resetBattleStats();
 
   // Create fighter data
   playerData = game.createFighter(selectedGladiator);
@@ -76,174 +73,24 @@ async function startBattle(): Promise<void> {
   // Start fighting
   await wait(TIMING.FIGHT_START_DELAY);
   log?.log('<strong>FIGHT!</strong>', 'system');
-
-  // Start combat loop
-  runCombatLoop();
+  startCombatRuntime();
 }
 
-/**
- * Run combat loop
- */
-function runCombatLoop(): void {
-  battleInterval = window.setInterval(() => {
-    executeTurn();
-  }, TIMING.TURN_INTERVAL);
-}
-
-/**
- * Execute a combat turn
- */
-function executeTurn(): void {
+function startCombatRuntime(): void {
   const playerFighter = battleScreen.getPlayerFighter();
   const enemyFighter = battleScreen.getEnemyFighter();
 
   if (!playerFighter || !enemyFighter || !playerData || !enemyData) return;
 
-  turnCount++;
-
-  // Determine initiative
-  const playerInit = combatSystem.calculateInitiative(playerData);
-  const enemyInit = combatSystem.calculateInitiative(enemyData);
-
-  if (playerInit >= enemyInit) {
-    executeAttack(playerFighter, enemyFighter, playerData, enemyData, 'player');
-    if (enemyData.currentHp > 0) {
-      setTimeout(() => {
-        const ef = battleScreen.getEnemyFighter();
-        const pf = battleScreen.getPlayerFighter();
-        if (ef && pf) executeAttack(ef, pf, enemyData!, playerData!, 'enemy');
-      }, TIMING.ATTACK_DURATION + 200);
-    }
-  } else {
-    executeAttack(enemyFighter, playerFighter, enemyData, playerData, 'enemy');
-    if (playerData.currentHp > 0) {
-      setTimeout(() => {
-        const pf = battleScreen.getPlayerFighter();
-        const ef = battleScreen.getEnemyFighter();
-        if (pf && ef) executeAttack(pf, ef, playerData!, enemyData!, 'player');
-      }, TIMING.ATTACK_DURATION + 200);
-    }
-  }
-}
-
-/**
- * Execute an attack
- */
-function executeAttack(
-  attacker: FighterComponent,
-  defender: FighterComponent,
-  attackerData: FighterData,
-  defenderData: FighterData,
-  attackerId: 'player' | 'enemy'
-): void {
-  if (attackerData.currentHp <= 0 || defenderData.currentHp <= 0) return;
-
-  // Perform attack
-  const result = combatSystem.performAttack(attackerData, defenderData);
-
-  // Attack animation
-  attacker.attack();
-
-  // Process result after hit delay
-  setTimeout(() => {
-    const log = battleScreen.getCombatLog();
-    const effects = battleScreen.getEffects();
-
-    if (result.hit) {
-      // Apply damage
-      combatSystem.applyDamage(defenderData, result.damage);
-
-      // Update stats
-      battleStats[attackerId].damage += result.damage;
-      if (result.crit) battleStats[attackerId].crits++;
-
-      // Visual feedback
-      defender.hit();
-      defender.showDamage(result.damage, result.crit);
-      defender.updateHealth();
-
-      // Particle effects - blood on hit
-      const pos = defender.getPosition();
-      effects?.blood(pos.x, pos.y, result.crit ? 12 : 8);
-
-      // Log
-      const logClass = result.crit ? 'crit' : 'hit';
-      const critText = result.crit ? ' <strong>CRITICAL!</strong>' : '';
-      log?.log(
-        `${attackerData.name} strikes for <span class="combat-log__${logClass}">${result.damage} damage</span>${critText}`,
-        'hit'
-      );
-    } else {
-      // Miss
-      battleStats[attackerId].misses++;
-      const defenderId = attackerId === 'player' ? 'enemy' : 'player';
-      battleStats[defenderId].dodges++;
-
-      // Dodge animation
-      defender.dodge();
-      defender.showText('DODGE');
-
-      log?.log(
-        `${attackerData.name} attacks... <span class="combat-log__miss">Miss!</span>`,
-        'miss'
-      );
-    }
-
-    // Check for victory
-    checkVictory();
-  }, TIMING.HIT_DELAY);
-}
-
-/**
- * Check for victory condition
- */
-function checkVictory(): void {
-  const playerFighter = battleScreen.getPlayerFighter();
-  const enemyFighter = battleScreen.getEnemyFighter();
-  const log = battleScreen.getCombatLog();
-
-  if (!playerData || !enemyData || !playerFighter || !enemyFighter) return;
-
-  if (playerData.currentHp <= 0 || enemyData.currentHp <= 0) {
-    // Stop battle
-    if (battleInterval) {
-      clearInterval(battleInterval);
-      battleInterval = null;
-    }
-
-    const playerWon = playerData.currentHp > 0;
-    const effects = battleScreen.getEffects();
-
-    // Death and victory animations
-    if (playerWon) {
-      enemyFighter.death();
-      setTimeout(() => {
-        const pf = battleScreen.getPlayerFighter();
-        if (pf) {
-          pf.victory();
-          // Victory sparkles
-          const pos = pf.getPosition();
-          effects?.sparkle(pos.x, pos.y, 15);
-        }
-      }, 500);
-      log?.log('<strong>VICTORY! The crowd roars!</strong>', 'system');
-    } else {
-      playerFighter.death();
-      setTimeout(() => {
-        const ef = battleScreen.getEnemyFighter();
-        if (ef) {
-          ef.victory();
-          // Victory sparkles
-          const pos = ef.getPosition();
-          effects?.sparkle(pos.x, pos.y, 15);
-        }
-      }, 500);
-      log?.log('<strong>DEFEAT! You have fallen...</strong>', 'system');
-    }
-
-    // Show results after delay
-    setTimeout(() => showResults(playerWon), TIMING.RESULTS_DELAY);
-  }
+  realTimeCombat.start({
+    player: playerData,
+    enemy: enemyData,
+    playerComponent: playerFighter,
+    enemyComponent: enemyFighter,
+    stats: battleStats,
+    effects: battleScreen.getEffects(),
+    onBattleEnd: winner => showResults(winner === 'player'),
+  });
 }
 
 /**
@@ -268,7 +115,7 @@ async function showResults(playerWon: boolean): Promise<void> {
  * Main initialization
  */
 function init(): void {
-  console.warn('🏛️ Gladiator Arena - Phase 5: Screens');
+  console.warn('🏛️ Gladiator Arena - Real-Time Combat Core');
 
   // Initialize game core
   game.init();
@@ -283,20 +130,17 @@ function init(): void {
     await startBattle();
   });
 
+  // Count exchanges off the real-time attack start event
+  eventBus.on(EVENTS.ATTACK_START, () => {
+    turnCount++;
+  });
+
   // Ensure full reset clears UI, state, and any running intervals
   eventBus.on(EVENTS.GAME_RESET, () => {
-    if (battleInterval) {
-      clearInterval(battleInterval);
-      battleInterval = null;
-    }
-
+    realTimeCombat.stop();
     playerData = null;
     enemyData = null;
-    turnCount = 0;
-    battleStats = {
-      player: { damage: 0, crits: 0, dodges: 0, misses: 0 },
-      enemy: { damage: 0, crits: 0, dodges: 0, misses: 0 },
-    };
+    resetBattleStats();
 
     selectionScreen.reset();
     battleScreen.reset();
@@ -304,11 +148,13 @@ function init(): void {
   });
 
   // Log system status
-  console.warn('✅ Phase 5 Systems Active:');
-  console.warn('  - EventBus: Ready');
+  console.warn('✅ Real-Time Core Active:');
+  console.warn('  - EventBus: Ready (frame + combat events)');
   console.warn('  - StateMachine: Ready');
   console.warn('  - ScreenManager: Ready');
   console.warn('  - Game Controller: Ready');
+  console.warn('  - FixedTimestep: Ready');
+  console.warn('  - RealTimeCombat: Ready');
   console.warn('  - SelectionScreen: Ready');
   console.warn('  - BattleScreen: Ready');
   console.warn('  - ResultsScreen: Ready');

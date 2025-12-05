@@ -24,4 +24,8 @@ export interface Gladiator {
 export interface Fighter extends Gladiator {
   currentHp: number;
   maxHp: number;
+  stamina: number;
+  maxStamina: number;
+  initiative: number;
+  initiativeThreshold: number;
 }

@@ -8,6 +8,7 @@ import type { Gladiator, Fighter } from '../types/gladiator.types';
 import { stateMachine } from './StateMachine';
 import { screenManager } from './ScreenManager';
 import { eventBus, EVENTS } from './EventBus';
+import { REALTIME } from '../data/config';
 
 export class Game {
   private state: GameState;
@@ -87,11 +88,6 @@ export class Game {
       this.selectGladiator(gladiator);
     });
 
-    // Listen for battle start
-    eventBus.on(EVENTS.BATTLE_START, () => {
-      this.startBattle();
-    });
-
     // Listen for game reset
     eventBus.on(EVENTS.GAME_RESET, () => {
       this.reset();
@@ -104,26 +100,6 @@ export class Game {
   private selectGladiator(gladiator: Gladiator): void {
     this.state.selectedGladiator = gladiator;
     console.warn(`Selected: ${gladiator.name}`);
-  }
-
-  /**
-   * Start a battle
-   */
-  private async startBattle(): Promise<void> {
-    if (!this.state.selectedGladiator) {
-      console.error('No gladiator selected');
-      return;
-    }
-
-    // Transition to battle screen
-    const success = await stateMachine.transitionTo('battle');
-    if (!success) {
-      console.error('Failed to transition to battle screen');
-      return;
-    }
-
-    // Initialize fighters (will be implemented in combat phase)
-    console.warn('Battle would start here...');
   }
 
   /**
@@ -193,6 +169,10 @@ export class Game {
       ...gladiator,
       currentHp: gladiator.stats.hp,
       maxHp: gladiator.stats.hp,
+      stamina: REALTIME.STAMINA.MAX,
+      maxStamina: REALTIME.STAMINA.MAX,
+      initiative: 0,
+      initiativeThreshold: REALTIME.INITIATIVE.ATTACK_THRESHOLD,
     };
   }
 }

@@ -28,6 +28,33 @@
   animation: walkBounce 0.3s infinite alternate;
 }
 
+.sprite--advance .sprite__leg--left,
+.sprite--advance .sprite__leg--right {
+  animation: walkLegLeft 0.55s infinite linear;
+}
+
+.sprite--advance {
+  animation: walkBounce 0.28s infinite alternate;
+}
+
+.sprite--retreat .sprite__leg--left,
+.sprite--retreat .sprite__leg--right {
+  animation: retreatLeg 0.5s infinite ease-in-out;
+}
+
+.sprite--retreat {
+  animation: retreatShuffle 0.32s infinite alternate;
+}
+
+.sprite--strafe {
+  animation: strafeRock 0.38s infinite ease-in-out;
+}
+
+.sprite--dash .sprite__torso,
+.sprite--dash .sprite__head {
+  animation: dashLean 0.3s ease-out forwards;
+}
+
 /* Attack Animation */
 .sprite--attack .sprite__arm--right {
   animation: attackStrike 0.35s ease-out forwards;
@@ -113,6 +140,42 @@
   }
   to {
     transform: translateY(-2px);
+  }
+}
+
+@keyframes retreatLeg {
+  0%, 100% {
+    transform: rotate(10deg);
+  }
+  50% {
+    transform: rotate(-18deg);
+  }
+}
+
+@keyframes retreatShuffle {
+  from {
+    transform: translateY(0) translateX(0);
+  }
+  to {
+    transform: translateY(-2px) translateX(-1px);
+  }
+}
+
+@keyframes strafeRock {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes dashLean {
+  0% {
+    transform: skewX(0deg) translateX(0);
+  }
+  100% {
+    transform: skewX(-6deg) translateX(2px);
   }
 }
 

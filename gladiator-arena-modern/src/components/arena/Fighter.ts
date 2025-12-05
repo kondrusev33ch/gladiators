@@ -3,14 +3,28 @@
  */
 
 import type { Fighter as FighterData } from '../../types/gladiator.types';
+import type { SpriteAnimation } from './Sprite';
 import { Sprite } from './Sprite';
 import { createElement } from '../../utils/dom';
+import { MOVEMENT } from '../../data/config';
+import { clamp } from '../../utils/math';
+
+type Direction = 'left' | 'right';
 
 export class Fighter {
   private container: HTMLElement;
   private sprite: Sprite;
   private data: FighterData;
   private isPlayer: boolean;
+  private arenaWidth: number;
+
+  private currentX: number;
+  private entryX: number;
+  private laneIndex: number;
+  private laneOffsets: number[];
+  private baseTransform = '';
+  private impulseTransform = '';
+  private footworkTimeout: number | null = null;
 
   private nameEl!: HTMLElement;
   private healthBarEl!: HTMLElement;
@@ -26,6 +40,17 @@ export class Fighter {
     this.container = arena;
     this.data = data;
     this.isPlayer = isPlayer;
+    this.arenaWidth = Math.max(640, this.container.clientWidth || 0);
+    this.laneOffsets = MOVEMENT.LANES;
+    this.laneIndex = clamp(
+      Math.floor(this.laneOffsets.length / 2),
+      0,
+      this.laneOffsets.length - 1
+    );
+
+    // X is tracked as the fighter's center position in px relative to the arena
+    this.currentX = this.isPlayer ? -160 : this.arenaWidth + 160;
+    this.entryX = this.isPlayer ? this.arenaWidth * 0.2 : this.arenaWidth * 0.8;
 
     // Create sprite instance
     this.spriteContainer = createElement('div');
@@ -45,12 +70,9 @@ export class Fighter {
       },
     });
 
-    // Set initial off-screen position using inline styles
-    if (this.isPlayer) {
-      this.fighterEl.style.left = '-120px';
-    } else {
-      this.fighterEl.style.right = '-120px';
-    }
+    // Set initial off-screen position using inline styles (center-based)
+    const fighterWidth = this.fighterEl.offsetWidth || 100;
+    this.fighterEl.style.left = `${this.currentX - fighterWidth / 2}px`;
 
     // Name
     this.nameEl = createElement('div', {
@@ -79,6 +101,8 @@ export class Fighter {
 
     this.container.appendChild(this.fighterEl);
 
+    this.applyTransform();
+
     // Create sprite - player faces right, enemy faces left during entrance
     this.sprite.create(this.data.weapon, !this.isPlayer);
   }
@@ -88,12 +112,8 @@ export class Fighter {
    */
   enter(): void {
     setTimeout(() => {
-      if (this.isPlayer) {
-        this.fighterEl.style.left = '15%';
-      } else {
-        this.fighterEl.style.right = '15%';
-      }
       this.sprite.setAnimation('walk');
+      this.moveToX(this.entryX, 900);
 
       // After entrance, turn enemy to face player (flip from left to right)
       if (!this.isPlayer) {
@@ -117,16 +137,10 @@ export class Fighter {
   attack(): void {
     this.sprite.setAnimation('attack');
 
-    // Lunge forward
-    const lungeDistance = 60;
-    this.fighterEl.style.transition = 'transform 300ms ease-out';
-    this.fighterEl.style.transform = this.isPlayer
-      ? `translateX(${lungeDistance}px)`
-      : `translateX(-${lungeDistance}px)`;
-
-    // Return to position
+    const lungeDistance = MOVEMENT.LUNGE_DISTANCE * (this.isPlayer ? 1 : -1);
+    this.setImpulse(lungeDistance, 300);
     setTimeout(() => {
-      this.fighterEl.style.transform = '';
+      this.clearImpulse();
       this.sprite.setAnimation('idle');
     }, 300);
   }
@@ -217,18 +231,49 @@ export class Fighter {
   }
 
   /**
-   * Dodge animation
+   * Dodge or dash animation with directionality
    */
-  dodge(): void {
-    const dodgeDistance = 25;
-    this.fighterEl.style.transition = 'transform 200ms ease-out';
-    this.fighterEl.style.transform = this.isPlayer
-      ? `translateX(-${dodgeDistance}px)`
-      : `translateX(${dodgeDistance}px)`;
+  dodge(direction: Direction, distance: number = MOVEMENT.DODGE.DISTANCE): number {
+    const delta = direction === 'left' ? -distance : distance;
+    const moved = this.moveBy(delta, 180, 'retreat');
+    this.setImpulse(delta * 0.35, 180);
+    setTimeout(() => this.clearImpulse(), 200);
+    return moved;
+  }
 
-    setTimeout(() => {
-      this.fighterEl.style.transform = '';
-    }, 200);
+  dash(direction: Direction, distance: number = MOVEMENT.DASH.DISTANCE): number {
+    const delta = direction === 'left' ? -distance : distance;
+    const moved = this.moveBy(delta, 180, 'dash');
+    this.setImpulse(delta * 0.2, 200);
+    setTimeout(() => this.clearImpulse(), 220);
+    return moved;
+  }
+
+  advanceToward(targetX: number, maxStep: number): number {
+    const direction = this.currentX < targetX ? 1 : -1;
+    const animation: SpriteAnimation =
+      (direction > 0 && this.isPlayer) || (direction < 0 && !this.isPlayer)
+        ? 'advance'
+        : 'retreat';
+    return this.moveBy(direction * maxStep, 180, animation);
+  }
+
+  retreatFrom(targetX: number, maxStep: number): number {
+    const direction = this.currentX < targetX ? -1 : 1;
+    return this.moveBy(direction * maxStep, 180, 'retreat');
+  }
+
+  strafe(direction: -1 | 1): boolean {
+    const nextLane = clamp(this.laneIndex + direction, 0, this.laneOffsets.length - 1);
+    if (nextLane === this.laneIndex) return false;
+    this.laneIndex = nextLane;
+    this.applyPosition(200);
+    this.setFootworkAnimation('strafe', 320);
+    return true;
+  }
+
+  getCenterX(): number {
+    return this.currentX;
   }
 
   /**
@@ -237,5 +282,79 @@ export class Fighter {
   destroy(): void {
     this.sprite.destroy();
     this.fighterEl.remove();
+    if (this.footworkTimeout) {
+      clearTimeout(this.footworkTimeout);
+      this.footworkTimeout = null;
+    }
+  }
+
+  private moveToX(x: number, durationMs: number): void {
+    this.currentX = x;
+    this.applyPosition(durationMs);
+  }
+
+  private moveBy(deltaX: number, durationMs: number, animation?: SpriteAnimation): number {
+    const halfWidth = this.getHalfWidth();
+    const minX = MOVEMENT.ARENA_PADDING + halfWidth;
+    const maxX = this.arenaWidth - MOVEMENT.ARENA_PADDING - halfWidth;
+    const nextX = clamp(this.currentX + deltaX, minX, maxX);
+    const applied = nextX - this.currentX;
+
+    if (applied === 0) return 0;
+
+    this.currentX = nextX;
+    this.applyPosition(durationMs);
+
+    if (animation) {
+      this.setFootworkAnimation(animation, durationMs + 120);
+    }
+
+    return applied;
+  }
+
+  private getHalfWidth(): number {
+    return (this.fighterEl?.offsetWidth || 100) / 2;
+  }
+
+  private applyPosition(durationMs: number): void {
+    const fighterWidth = this.fighterEl.offsetWidth || 100;
+    const left = this.currentX - fighterWidth / 2;
+    this.fighterEl.style.transition = `left ${durationMs}ms ease, transform ${durationMs}ms ease`;
+    this.fighterEl.style.left = `${left}px`;
+    this.applyTransform();
+  }
+
+  private applyTransform(): void {
+    const laneOffset = this.laneOffsets[this.laneIndex] ?? 0;
+    this.baseTransform = `translateY(${laneOffset}px)`;
+    const transforms = `${this.baseTransform} ${this.impulseTransform}`.trim();
+    this.fighterEl.style.transform = transforms;
+  }
+
+  private setImpulse(offsetX: number, durationMs: number): void {
+    this.fighterEl.style.transition = `transform ${durationMs}ms ease`;
+    this.impulseTransform = `translateX(${offsetX}px)`;
+    this.applyTransform();
+  }
+
+  private clearImpulse(): void {
+    this.impulseTransform = '';
+    this.applyTransform();
+  }
+
+  private setFootworkAnimation(animation: SpriteAnimation, durationMs: number): void {
+    if (this.footworkTimeout) {
+      clearTimeout(this.footworkTimeout);
+    }
+
+    this.sprite.setAnimation(animation);
+    this.footworkTimeout = window.setTimeout(() => {
+      // Avoid interrupting attack/hit/ko animations
+      const current = this.sprite.getCurrentAnimation();
+      if (current === 'attack' || current === 'hit' || current === 'death' || current === 'victory') {
+        return;
+      }
+      this.sprite.setAnimation('idle');
+    }, durationMs);
   }
 }

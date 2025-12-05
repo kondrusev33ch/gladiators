@@ -3,7 +3,7 @@
  */
 
 import type { TimingConfig, MovementConfig, ParticlesConfig } from '../types/game.types';
-import type { CombatConfig } from '../types/combat.types';
+import type { CombatConfig, RealTimeCombatConfig } from '../types/combat.types';
 
 export const TIMING: TimingConfig = {
   WALK_IN_DELAY: 100,
@@ -28,9 +28,69 @@ export const COMBAT: CombatConfig = {
   MIN_DAMAGE: 1,
 };
 
+export const REALTIME: RealTimeCombatConfig = {
+  STEP_MS: 1000 / 60,
+  MAX_STEPS_PER_FRAME: 5,
+  MAX_FRAME_MS: 48,
+  STAMINA: {
+    MAX: 100,
+    REGEN_PER_SECOND: 22,
+  },
+  INITIATIVE: {
+    MAX: 100,
+    REGEN_PER_SECOND: 30,
+    ATTACK_THRESHOLD: 60,
+  },
+  ATTACK: {
+    windup: 220,
+    active: 140,
+    recovery: 420,
+    range: 120,
+    staminaCost: 26,
+    initiativeCost: 60,
+  },
+  HURTBOX: {
+    radius: 38,
+    height: 110,
+  },
+  HITBOX: {
+    range: 120,
+    width: 50,
+    height: 50,
+    offsetX: 24,
+  },
+  SPACING: {
+    DANGER: 90,
+    SWEET_MIN: 105,
+    SWEET_MAX: 150,
+    UPDATE_INTERVAL: 140,
+  },
+  NAVIGATION: {
+    CHECK_INTERVAL: 110,
+    MAX_STEP: 26,
+  },
+};
+
 export const MOVEMENT: MovementConfig = {
   LUNGE_DISTANCE: 60,
-  DODGE_DISTANCE: 25,
+  ARENA_PADDING: 60,
+  LANES: [-18, 0, 18],
+  FOOTWORK: {
+    SPEED: 240, // px per second
+    BACKPEDAL_SPEED: 280, // px per second
+    STRAFE_DISTANCE: 55,
+    COST_PER_SECOND: 5,
+  },
+  DODGE: {
+    DISTANCE: 32,
+    STAMINA_COST: 12,
+    IFRAMES: 260,
+  },
+  DASH: {
+    DISTANCE: 115,
+    STAMINA_COST: 18,
+    IFRAMES: 320,
+  },
 };
 
 export const PARTICLES: ParticlesConfig = {
@@ -43,6 +103,7 @@ export const PARTICLES: ParticlesConfig = {
 export const CONFIG = {
   TIMING,
   COMBAT,
+  REALTIME,
   MOVEMENT,
   PARTICLES,
 };

@@ -8,6 +8,10 @@ import { createElement } from '../../utils/dom';
 export type SpriteAnimation =
   | 'idle'
   | 'walk'
+  | 'advance'
+  | 'retreat'
+  | 'strafe'
+  | 'dash'
   | 'attack'
   | 'hit'
   | 'death'
@@ -65,6 +69,10 @@ export class Sprite {
     this.spriteElement.classList.remove(
       'sprite--idle',
       'sprite--walk',
+      'sprite--advance',
+      'sprite--retreat',
+      'sprite--strafe',
+      'sprite--dash',
       'sprite--attack',
       'sprite--hit',
       'sprite--death',

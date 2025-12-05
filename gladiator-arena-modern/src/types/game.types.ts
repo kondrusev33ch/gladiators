@@ -33,7 +33,24 @@ export interface TimingConfig {
 
 export interface MovementConfig {
   LUNGE_DISTANCE: number;
-  DODGE_DISTANCE: number;
+  ARENA_PADDING: number;
+  LANES: number[];
+  FOOTWORK: {
+    SPEED: number; // Forward shuffle speed (px per second)
+    BACKPEDAL_SPEED: number; // Retreat speed (px per second)
+    STRAFE_DISTANCE: number; // Lateral lane change distance (px)
+    COST_PER_SECOND: number; // Stamina drain while moving (per second of movement)
+  };
+  DODGE: {
+    DISTANCE: number;
+    STAMINA_COST: number;
+    IFRAMES: number;
+  };
+  DASH: {
+    DISTANCE: number;
+    STAMINA_COST: number;
+    IFRAMES: number;
+  };
 }
 
 export interface ParticlesConfig {
@@ -41,6 +58,14 @@ export interface ParticlesConfig {
   MIN_SIZE: number;
   MAX_SIZE: number;
   DURATION: number;
+}
+
+export type SpacingBand = 'out-of-range' | 'sweet-spot' | 'danger-zone';
+
+export interface SpacingStatus {
+  distance: number;
+  player: SpacingBand;
+  enemy: SpacingBand;
 }
 
 export type LogType = 'hit' | 'crit' | 'miss' | 'system';
