@@ -7,6 +7,7 @@ import type { AnimationDirection, AnimationOptions, SpriteAnimation } from './Sp
 import { Sprite } from './Sprite';
 import { createElement } from '../../utils/dom';
 import { MOVEMENT, TIMING } from '../../data/config';
+import { eventBus, EVENTS } from '../../core/EventBus';
 import { clamp } from '../../utils/math';
 
 type Direction = 'left' | 'right';
@@ -32,9 +33,12 @@ export class Fighter {
 
   private nameEl!: HTMLElement;
   private healthBarEl!: HTMLElement;
+  private staminaBarEl!: HTMLElement;
   private damageEl!: HTMLElement;
   private spriteContainer!: HTMLElement;
   private fighterEl!: HTMLElement;
+  private subscriptions: Array<{ unsubscribe: () => void }> = [];
+  private readonly id: 'player' | 'enemy';
 
   constructor(
     arena: HTMLElement,
@@ -51,6 +55,7 @@ export class Fighter {
       0,
       this.laneOffsets.length - 1
     );
+    this.id = this.isPlayer ? 'player' : 'enemy';
 
     // X is tracked as the fighter's center position in px relative to the arena
     this.currentX = this.isPlayer ? -160 : this.arenaWidth + 160;
@@ -72,7 +77,7 @@ export class Fighter {
    */
   private createFighterElement(): void {
     this.fighterEl = createElement('div', {
-      className: `absolute bottom-[30px] w-[100px] text-center z-10 transition-all duration-1000 ease-out`,
+      className: `fighter absolute bottom-[30px] w-[100px] text-center z-10 transition-all duration-1000 ease-out ${this.isPlayer ? 'fighter--player' : 'fighter--enemy'}`,
       attributes: {
         'data-fighter': this.isPlayer ? 'player' : 'enemy',
       },
@@ -88,12 +93,23 @@ export class Fighter {
       textContent: this.data.name,
     });
 
+    const meterStack = createElement('div', {
+      className: 'flex flex-col items-center gap-[4px] mb-2',
+    });
+
     // Health bar container
     const healthContainer = createElement('div', {
-      className: 'w-[110%] -ml-[5%] h-3 bg-[#222] border-2 border-[#111] rounded overflow-hidden mb-2',
+      className: 'w-[110%] -ml-[5%] h-3 bg-[#222] border-2 border-[#111] rounded overflow-hidden',
       innerHTML: '<div class="fighter__health-bar w-full h-full bg-[#2d5a27] transition-all duration-300"></div>',
     });
     this.healthBarEl = healthContainer.querySelector('.fighter__health-bar') as HTMLElement;
+
+    // Stamina bar container (sits just below health)
+    const staminaContainer = createElement('div', {
+      className: 'w-[110%] -ml-[5%] h-2 bg-[#0f172a] border-2 border-[#0b1220] rounded overflow-hidden shadow-inner',
+      innerHTML: '<div class="fighter__stamina-bar w-full h-full bg-[#2563eb] transition-all duration-300"></div>',
+    });
+    this.staminaBarEl = staminaContainer.querySelector('.fighter__stamina-bar') as HTMLElement;
 
     // Damage display
     this.damageEl = createElement('div', {
@@ -101,9 +117,12 @@ export class Fighter {
       attributes: { 'data-damage': '' },
     });
 
+    meterStack.appendChild(healthContainer);
+    meterStack.appendChild(staminaContainer);
+
     // Append elements
     this.fighterEl.appendChild(this.nameEl);
-    this.fighterEl.appendChild(healthContainer);
+    this.fighterEl.appendChild(meterStack);
     this.fighterEl.appendChild(this.damageEl);
     this.fighterEl.appendChild(this.spriteContainer);
 
@@ -113,6 +132,9 @@ export class Fighter {
 
     // Create sprite - player faces right, enemy faces left during entrance
     this.sprite.create(this.data.weapon, !this.isPlayer);
+    this.updateHealth();
+    this.updateStamina(this.data.stamina, this.data.maxStamina);
+    this.registerEvents();
   }
 
   /**
@@ -268,6 +290,28 @@ export class Fighter {
   }
 
   /**
+   * Update stamina bar
+   */
+  updateStamina(value?: number, max?: number): void {
+    if (typeof max === 'number') {
+      this.data.maxStamina = Math.max(1, max);
+    }
+    if (typeof value === 'number') {
+      this.data.stamina = clamp(value, 0, this.data.maxStamina);
+    }
+
+    const percent = (this.data.stamina / this.data.maxStamina) * 100;
+    this.staminaBarEl.style.width = `${percent}%`;
+
+    // Shift to warning color when low stamina
+    if (percent < 25) {
+      this.staminaBarEl.style.background = '#f59e0b';
+    } else {
+      this.staminaBarEl.style.background = '#2563eb';
+    }
+  }
+
+  /**
    * Get fighter data
    */
   getData(): FighterData {
@@ -343,6 +387,8 @@ export class Fighter {
    * Clean up
    */
   destroy(): void {
+    this.subscriptions.forEach(sub => sub.unsubscribe());
+    this.subscriptions = [];
     this.sprite.destroy();
     this.fighterEl.remove();
     if (this.footworkTimeout) {
@@ -492,5 +538,16 @@ export class Fighter {
       }
       this.sprite.setAnimation('idle', { direction: this.direction, blend: true });
     }, durationMs);
+  }
+
+  private registerEvents(): void {
+    const staminaSub = eventBus.on<{ id: 'player' | 'enemy'; value: number; max: number }>(
+      EVENTS.STAMINA_CHANGED,
+      ({ id, value, max }) => {
+        if (id !== this.id) return;
+        this.updateStamina(value, max);
+      }
+    );
+    this.subscriptions.push(staminaSub);
   }
 }

@@ -2,6 +2,9 @@
  * Effects - Particle system for visual effects
  */
 
+import { wait } from '../utils/async';
+import type { HitStopConfig } from '../types/game.types';
+
 interface Particle {
   x: number;
   y: number;
@@ -20,9 +23,60 @@ export class Effects {
   private container: HTMLElement;
   private particles: Particle[] = [];
   private animationId: number | null = null;
+  private hitStopActive = false;
+  private frozen = false;
+  private timeScale = 1;
 
   constructor(container: HTMLElement) {
     this.container = container;
+  }
+
+  /**
+   * Adjust global animation speed
+   */
+  setTimeScale(scale: number = 1): void {
+    this.timeScale = Math.max(scale, 0.05);
+    document.documentElement.style.setProperty('--time-scale', `${this.timeScale}`);
+  }
+
+  /**
+   * Reset animation speed to normal
+   */
+  resetTimeScale(): void {
+    this.setTimeScale(1);
+  }
+
+  /**
+   * Camera shake
+   */
+  cameraShake(intensity: number = 1): void {
+    this.container.style.setProperty('--shake-intensity', `${intensity}`);
+    this.container.classList.remove('arena--shake');
+    // Force reflow to restart the animation
+    void this.container.offsetWidth;
+    this.container.classList.add('arena--shake');
+  }
+
+  /**
+   * Hit-stop + slow-mo for readability
+   */
+  async hitStop(config: HitStopConfig): Promise<void> {
+    if (this.hitStopActive) return;
+    this.hitStopActive = true;
+
+    this.frozen = true;
+    this.container.classList.add('arena--hitstop');
+    await wait(config.freezeDuration);
+
+    this.container.classList.remove('arena--hitstop');
+    this.container.classList.add('arena--slowmo');
+    this.frozen = false;
+    this.setTimeScale(config.slowScale);
+    await wait(config.slowDuration);
+
+    this.container.classList.remove('arena--slowmo');
+    this.resetTimeScale();
+    this.hitStopActive = false;
   }
 
   /**
@@ -122,16 +176,20 @@ export class Effects {
    * Update all particles
    */
   private update(deltaTime: number): void {
+    if (this.frozen) return;
+
     const gravity = 0.3;
-    const decay = deltaTime / 1000;
+    const scaledDelta = deltaTime / this.timeScale;
+    const timeFactor = scaledDelta / 16.67; // normalize vs. 60fps frame
+    const decay = scaledDelta / 1000;
 
     for (let i = this.particles.length - 1; i >= 0; i--) {
       const particle = this.particles[i];
 
       // Update physics
-      particle.vy += gravity;
-      particle.x += particle.vx;
-      particle.y += particle.vy;
+      particle.vy += gravity * timeFactor;
+      particle.x += particle.vx * timeFactor;
+      particle.y += particle.vy * timeFactor;
       particle.life -= decay;
 
       // Update DOM
@@ -193,6 +251,10 @@ export class Effects {
     this.stopAnimation();
     this.particles.forEach(p => p.element.remove());
     this.particles = [];
+    this.container.classList.remove('arena--shake', 'arena--hitstop', 'arena--slowmo');
+    this.resetTimeScale();
+    this.hitStopActive = false;
+    this.frozen = false;
   }
 
   /**

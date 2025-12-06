@@ -60,6 +60,19 @@ export interface ParticlesConfig {
   DURATION: number;
 }
 
+export interface HitStopConfig {
+  freezeDuration: number;
+  slowDuration: number;
+  slowScale: number;
+}
+
+export interface EffectsConfig {
+  HEAVY_HIT_THRESHOLD: number;
+  CRIT_HITSTOP: HitStopConfig;
+  PARRY_HITSTOP: HitStopConfig;
+  CAMERA_SHAKE_INTENSITY: number;
+}
+
 export type SpacingBand = 'out-of-range' | 'sweet-spot' | 'danger-zone';
 
 export interface SpacingStatus {

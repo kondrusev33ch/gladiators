@@ -7,11 +7,17 @@
   @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
 
   :root {
+    --time-scale: 1;
+    --shake-intensity: 1;
     /* Animation Durations */
-    --anim-fast: 150ms;
-    --anim-normal: 300ms;
-    --anim-slow: 600ms;
-    --anim-very-slow: 1000ms;
+    --anim-fast-base: 150ms;
+    --anim-normal-base: 300ms;
+    --anim-slow-base: 600ms;
+    --anim-very-slow-base: 1000ms;
+    --anim-fast: calc(var(--anim-fast-base) * var(--time-scale));
+    --anim-normal: calc(var(--anim-normal-base) * var(--time-scale));
+    --anim-slow: calc(var(--anim-slow-base) * var(--time-scale));
+    --anim-very-slow: calc(var(--anim-very-slow-base) * var(--time-scale));
 
     /* Borders (using fixed color values) */
     --border-gold: 2px solid #c9a227;
@@ -141,6 +147,38 @@
     @apply bottom-2 right-2;
     border-left: none;
     border-top: none;
+  }
+
+  /* Arena styling & lighting */
+  .arena {
+    @apply relative overflow-hidden rounded-md border-[4px] border-ink shadow-arena;
+    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.1) 45%, rgba(0, 0, 0, 0.5) 100%),
+      url('https://upload.wikimedia.org/wikipedia/commons/thumb/6/69/Colosseum_in_Rome%2C_Italy_-_April_2007.jpg/1280px-Colosseum_in_Rome%2C_Italy_-_April_2007.jpg');
+    background-size: cover;
+    background-position: center 32%;
+  }
+
+  .arena__ground {
+    z-index: 4;
+  }
+
+  .arena--shake {
+    animation: cameraShake calc(0.45s * var(--time-scale)) ease-in-out;
+  }
+
+  .arena--hitstop .sprite *,
+  .arena--hitstop .fighter__damage,
+  .arena--hitstop .particle,
+  .arena--hitstop .arena__vs {
+    animation-play-state: paused !important;
+  }
+
+  .arena--hitstop {
+    filter: saturate(1.12);
+  }
+
+  .arena--slowmo {
+    filter: saturate(1.2);
   }
 
   /* Screen transitions */
@@ -328,5 +366,9 @@
     cursor: not-allowed;
     opacity: 0.6;
     box-shadow: none;
+  }
+
+  /* Fighters */
+  .fighter {
   }
 }

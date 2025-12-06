@@ -26,7 +26,7 @@
 }
 
 .sprite--layer-weapon-trail .sprite__weapon {
-  animation: weaponTrail 0.32s ease-out forwards;
+  animation: weaponTrail calc(0.32s * var(--time-scale)) ease-out forwards;
   box-shadow: 10px 0 10px rgba(255, 215, 128, 0.4);
   filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.35));
 }
@@ -42,64 +42,64 @@
 
 /* Idle Animation */
 .sprite--idle .sprite__torso {
-  animation: breathe 2s infinite ease-in-out;
+  animation: breathe calc(2s * var(--time-scale)) infinite ease-in-out;
 }
 
 .sprite--idle .sprite__head {
-  animation: headBob 2s infinite ease-in-out;
+  animation: headBob calc(2s * var(--time-scale)) infinite ease-in-out;
 }
 
 .sprite--idle .sprite__arm {
-  animation: armSway 2.5s infinite ease-in-out;
+  animation: armSway calc(2.5s * var(--time-scale)) infinite ease-in-out;
 }
 
 /* Walk Animation */
 .sprite--walk .sprite__leg--left {
-  animation: walkLegLeft 0.6s infinite linear;
+  animation: walkLegLeft calc(0.6s * var(--time-scale)) infinite linear;
 }
 
 .sprite--walk .sprite__leg--right {
-  animation: walkLegRight 0.6s infinite linear;
+  animation: walkLegRight calc(0.6s * var(--time-scale)) infinite linear;
 }
 
 .sprite--walk {
-  animation: walkBounce 0.3s infinite alternate;
+  animation: walkBounce calc(0.3s * var(--time-scale)) infinite alternate;
 }
 
 .sprite--advance .sprite__leg--left,
 .sprite--advance .sprite__leg--right {
-  animation: walkLegLeft 0.55s infinite linear;
+  animation: walkLegLeft calc(0.55s * var(--time-scale)) infinite linear;
 }
 
 .sprite--advance {
-  animation: walkBounce 0.28s infinite alternate;
+  animation: walkBounce calc(0.28s * var(--time-scale)) infinite alternate;
 }
 
 .sprite--retreat .sprite__leg--left,
 .sprite--retreat .sprite__leg--right {
-  animation: retreatLeg 0.5s infinite ease-in-out;
+  animation: retreatLeg calc(0.5s * var(--time-scale)) infinite ease-in-out;
 }
 
 .sprite--retreat {
-  animation: retreatShuffle 0.32s infinite alternate;
+  animation: retreatShuffle calc(0.32s * var(--time-scale)) infinite alternate;
 }
 
 .sprite--strafe {
-  animation: strafeRock 0.38s infinite ease-in-out;
+  animation: strafeRock calc(0.38s * var(--time-scale)) infinite ease-in-out;
 }
 
 .sprite--dash .sprite__torso,
 .sprite--dash .sprite__head {
-  animation: dashLean 0.3s ease-out forwards;
+  animation: dashLean calc(0.3s * var(--time-scale)) ease-out forwards;
 }
 
 /* Attack Animation */
 .sprite--attack .sprite__arm--right {
-  animation: attackStrike 0.35s ease-out forwards;
+  animation: attackStrike calc(0.35s * var(--time-scale)) ease-out forwards;
 }
 
 .sprite--block .sprite__arm--left {
-  animation: blockBrace 0.22s ease-out forwards;
+  animation: blockBrace calc(0.22s * var(--time-scale)) ease-out forwards;
 }
 
 .sprite--block .sprite__shield {
@@ -107,7 +107,7 @@
 }
 
 .sprite--parry .sprite__arm--right {
-  animation: parryCatch 0.24s ease-out forwards;
+  animation: parryCatch calc(0.24s * var(--time-scale)) ease-out forwards;
 }
 
 .sprite--parry .sprite__weapon {
@@ -116,31 +116,32 @@
 
 /* Hit Animation */
 .sprite--hit {
-  animation: hitShake 0.4s ease-out;
+  animation: hitShake calc(0.4s * var(--time-scale)) ease-out;
 }
 
 .sprite--stagger {
-  animation: staggerReel 0.32s ease-out;
+  animation: staggerReel calc(0.32s * var(--time-scale)) ease-out;
 }
 
 /* Death Animation */
 .sprite--death {
-  animation: deathCollapse 1.2s ease-out forwards;
+  animation: deathCollapse calc(1.2s * var(--time-scale)) ease-out forwards;
 }
 
 /* Victory Animation */
 .sprite--victory .sprite__arm--right {
-  animation: victoryRaise 0.8s ease-out forwards;
+  animation: victoryRaise calc(0.8s * var(--time-scale)) ease-out forwards;
 }
 
 /* Damage Float Animation */
 .fighter__damage--animate {
-  animation: damageFloat 1.2s ease-out forwards;
+  animation: damageFloat calc(1.2s * var(--time-scale)) ease-out forwards;
 }
 
 /* VS Badge Animation */
 .arena__vs--show {
-  animation: vsAppear 0.5s ease-out forwards, vsPulse 0.3s ease-in-out 0.5s 2;
+  animation: vsAppear calc(0.5s * var(--time-scale)) ease-out forwards,
+    vsPulse calc(0.3s * var(--time-scale)) ease-in-out 0.5s 2;
 }
 
 /* ============================================
@@ -375,5 +376,30 @@
   }
   50% {
     transform: translate(-50%, -50%) scale(1.1);
+  }
+}
+
+@keyframes cameraShake {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0);
+  }
+  15% {
+    transform: translate3d(calc(2px * var(--shake-intensity)), calc(-2px * var(--shake-intensity)), 0)
+      rotate(-0.6deg);
+  }
+  30% {
+    transform: translate3d(calc(-4px * var(--shake-intensity)), calc(3px * var(--shake-intensity)), 0)
+      rotate(0.6deg);
+  }
+  50% {
+    transform: translate3d(calc(3px * var(--shake-intensity)), calc(-3px * var(--shake-intensity)), 0)
+      rotate(-0.4deg);
+  }
+  70% {
+    transform: translate3d(calc(-2px * var(--shake-intensity)), calc(2px * var(--shake-intensity)), 0)
+      rotate(0.3deg);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0);
   }
 }

@@ -2,7 +2,7 @@
  * Game configuration and constants
  */
 
-import type { TimingConfig, MovementConfig, ParticlesConfig } from '../types/game.types';
+import type { TimingConfig, MovementConfig, ParticlesConfig, EffectsConfig } from '../types/game.types';
 import type { CombatConfig, RealTimeCombatConfig } from '../types/combat.types';
 
 export const TIMING: TimingConfig = {
@@ -126,10 +126,18 @@ export const PARTICLES: ParticlesConfig = {
   DURATION: 500,
 };
 
+export const FX: EffectsConfig = {
+  HEAVY_HIT_THRESHOLD: 18,
+  CRIT_HITSTOP: { freezeDuration: 140, slowDuration: 520, slowScale: 1.5 },
+  PARRY_HITSTOP: { freezeDuration: 110, slowDuration: 380, slowScale: 1.25 },
+  CAMERA_SHAKE_INTENSITY: 1.15,
+};
+
 export const CONFIG = {
   TIMING,
   COMBAT,
   REALTIME,
   MOVEMENT,
   PARTICLES,
+  FX,
 };

@@ -27,10 +27,9 @@
 - [x] Layer procedural tweaks (weapon trails, head turns, shield adjustments) on top of keyframes
 
 ### Phase 5: Visual Effects and Camera
-- [ ] Add impact VFX (sparks, dust, blood variants) keyed to weapon type and surface
-- [ ] Implement camera behaviors: subtle shake on heavy hits, quick zooms on finishers, arena-wide sweeps at round start/end
-- [ ] Add hit-stop and time dilation on parries/critical blows for readability
-- [ ] Integrate directional lighting/shadows to ground characters in the arena
+- [x] Implement camera behaviors: subtle shake on heavy hits
+- [x] Add hit-stop and time dilation on parries/critical blows for readability
+- [x] Integrate directional lighting/shadows to ground characters in the arena
 
 ### Phase 6: AI Behaviors
 - [ ] Build behavior trees or utility AI that choose between attack, block, dodge, reposition based on spacing/stamina

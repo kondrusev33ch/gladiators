@@ -16,7 +16,7 @@ import type {
 } from '../types/combat.types';
 import { combatSystem } from './Combat';
 import { FixedTimestep } from '../core/FixedTimestep';
-import { MOVEMENT, REALTIME, TIMING } from '../data/config';
+import { MOVEMENT, REALTIME, TIMING, FX } from '../data/config';
 import { eventBus, EVENTS } from '../core/EventBus';
 import { clamp } from '../utils/math';
 import type { Fighter as FighterComponent } from '../components/arena/Fighter';
@@ -703,11 +703,15 @@ export class RealTimeCombat {
 
   private handleParry(defender: RuntimeFighter, attacker: RuntimeFighter, action: ParryState): void {
     if (!this.context) return;
+    const effects = this.context.effects;
 
     action.counterReady = true;
     action.phase = 'recovery';
     this.context.stats[attacker.id].misses += 1;
     this.context.stats[defender.id].dodges += 1;
+
+    effects?.hitStop(FX.PARRY_HITSTOP);
+    effects?.cameraShake(FX.CAMERA_SHAKE_INTENSITY * 0.85);
 
     const counterBase = combatSystem.calculateDamage(defender.data, attacker.data, false);
     const counterDamage = Math.round(counterBase * action.config.counterMultiplier);
@@ -739,6 +743,7 @@ export class RealTimeCombat {
     const effects = this.context.effects;
     const pos = defenderComponent.getPosition();
     effects?.impact(pos.x, pos.y, 12);
+    effects?.cameraShake(FX.CAMERA_SHAKE_INTENSITY);
 
     eventBus.emit(EVENTS.ATTACK_HIT, {
       attacker: attacker.id,
@@ -791,6 +796,10 @@ export class RealTimeCombat {
     const effects = this.context.effects;
     const pos = defenderComponent.getPosition();
     effects?.blood(pos.x, pos.y, crit ? 12 : 8);
+    const heavyHit = damage >= FX.HEAVY_HIT_THRESHOLD;
+    if (crit || heavyHit) {
+      effects?.cameraShake(crit ? FX.CAMERA_SHAKE_INTENSITY : FX.CAMERA_SHAKE_INTENSITY * 0.85);
+    }
 
     const logClass = crit ? 'crit' : 'hit';
     const critText = crit ? ' <strong>CRITICAL!</strong>' : '';
@@ -806,6 +815,10 @@ export class RealTimeCombat {
       crit,
     });
     eventBus.emit(EVENTS.HURTBOX_HIT, { target: defender.id, remainingHp: defender.data.currentHp });
+
+    if (crit) {
+      effects?.hitStop(FX.CRIT_HITSTOP);
+    }
 
     this.applyImpactStagger(attacker, defender, damage, crit);
     this.checkDefeat();

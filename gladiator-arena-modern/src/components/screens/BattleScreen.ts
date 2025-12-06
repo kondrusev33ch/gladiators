@@ -60,7 +60,7 @@ export class BattleScreen {
    */
   private createArena(): HTMLElement {
     const arena = createElement('div', {
-      className: 'arena relative h-[280px] rounded-md overflow-hidden shadow-arena',
+      className: 'arena relative h-[280px]',
       innerHTML: `
         <div class="arena__ground absolute bottom-0 w-full h-[35px] border-t-2 border-black/30"
              style="background: linear-gradient(to bottom, #c4a574 0%, #8b6914 100%);"></div>
