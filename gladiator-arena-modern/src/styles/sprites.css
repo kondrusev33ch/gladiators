@@ -7,6 +7,7 @@
   width: 80px;
   height: 110px;
   margin: 0 auto;
+  --look-tilt: 0deg;
 }
 
 .sprite--flipped {
@@ -27,6 +28,8 @@
   height: 28px;
   border-radius: 6px;
   z-index: 5;
+  transform: rotate(var(--look-tilt, 0deg));
+  transform-origin: 50% 60%;
 }
 
 .sprite__helmet {
@@ -188,4 +191,30 @@
   width: 4px;
   height: 12px;
   background: silver;
+}
+
+/* Directional looks */
+.sprite--dir-front {
+  --look-tilt: 5deg;
+}
+
+.sprite--dir-oblique {
+  --look-tilt: 3deg;
+}
+
+.sprite--dir-side {
+  --look-tilt: 0deg;
+}
+
+.sprite--dir-front .sprite__armor,
+.sprite--dir-front .sprite__helmet {
+  box-shadow: inset 0 0 6px rgba(255, 255, 255, 0.18);
+}
+
+.sprite--dir-oblique .sprite__weapon {
+  filter: brightness(1.05) drop-shadow(2px 0 4px rgba(0, 0, 0, 0.25));
+}
+
+.sprite--dir-side .sprite__shield {
+  box-shadow: inset -2px 0 4px rgba(0, 0, 0, 0.35);
 }

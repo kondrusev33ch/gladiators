@@ -2,6 +2,44 @@
    SPRITE ANIMATIONS
    ============================================ */
 
+.sprite {
+  --look-tilt: 0deg;
+  --shield-tilt: 0deg;
+  --trail-strength: 0;
+}
+
+.sprite--blend {
+  transition: filter 0.24s ease, transform 0.24s ease;
+  filter: saturate(1.08) drop-shadow(0 0 6px rgba(255, 255, 255, 0.18));
+}
+
+.sprite--state-attack {
+  filter: drop-shadow(0 0 10px rgba(255, 196, 0, 0.2));
+}
+
+.sprite--state-hit {
+  filter: brightness(0.9) contrast(1.08);
+}
+
+.sprite--state-down {
+  filter: grayscale(0.4);
+}
+
+.sprite--layer-weapon-trail .sprite__weapon {
+  animation: weaponTrail 0.32s ease-out forwards;
+  box-shadow: 10px 0 10px rgba(255, 215, 128, 0.4);
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.35));
+}
+
+.sprite.sprite--layer-head-track {
+  --look-tilt: 8deg;
+}
+
+.sprite--layer-shield-brace .sprite__shield {
+  transform: rotate(calc(-6deg + var(--shield-tilt, 0deg))) translateY(-2px);
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.35);
+}
+
 /* Idle Animation */
 .sprite--idle .sprite__torso {
   animation: breathe 2s infinite ease-in-out;
@@ -120,10 +158,10 @@
 
 @keyframes headBob {
   0%, 100% {
-    transform: translateY(0);
+    transform: translateY(0) rotate(var(--look-tilt, 0deg));
   }
   50% {
-    transform: translateY(-1px);
+    transform: translateY(-1px) rotate(var(--look-tilt, 0deg));
   }
 }
 
@@ -304,6 +342,19 @@
     opacity: 0;
     top: -120px;
     transform: translateX(-50%) scale(1);
+  }
+}
+
+@keyframes weaponTrail {
+  0% {
+    transform: translateX(-2px) scaleX(1.05);
+    box-shadow: 10px 0 10px rgba(255, 215, 128, 0.4);
+    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.35));
+  }
+  100% {
+    transform: translateX(0) scaleX(1);
+    box-shadow: 0 0 0 rgba(255, 215, 128, 0);
+    filter: drop-shadow(0 0 0 rgba(255, 255, 255, 0));
   }
 }
 

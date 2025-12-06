@@ -21,10 +21,10 @@
 - [x] Integrate stagger/stun reactions based on impact force and angle
 
 ### Phase 4: Animation Overhaul
-- [ ] Move to state-driven animation controller with blending (idle ↔ move ↔ attack ↔ hit ↔ down)
-- [ ] Create directional animation sets (front/oblique/side) for movement and attacks
-- [ ] Add root-motion approximations so lunges/dodges translate fighters believably
-- [ ] Layer procedural tweaks (weapon trails, head turns, shield adjustments) on top of keyframes
+- [x] Move to state-driven animation controller with blending (idle ↔ move ↔ attack ↔ hit ↔ down)
+- [x] Create directional animation sets (front/oblique/side) for movement and attacks
+- [x] Add root-motion approximations so lunges/dodges translate fighters believably
+- [x] Layer procedural tweaks (weapon trails, head turns, shield adjustments) on top of keyframes
 
 ### Phase 5: Visual Effects and Camera
 - [ ] Add impact VFX (sparks, dust, blood variants) keyed to weapon type and surface

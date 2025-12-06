@@ -3,10 +3,10 @@
  */
 
 import type { Fighter as FighterData } from '../../types/gladiator.types';
-import type { SpriteAnimation } from './Sprite';
+import type { AnimationDirection, AnimationOptions, SpriteAnimation } from './Sprite';
 import { Sprite } from './Sprite';
 import { createElement } from '../../utils/dom';
-import { MOVEMENT } from '../../data/config';
+import { MOVEMENT, TIMING } from '../../data/config';
 import { clamp } from '../../utils/math';
 
 type Direction = 'left' | 'right';
@@ -25,6 +25,10 @@ export class Fighter {
   private baseTransform = '';
   private impulseTransform = '';
   private footworkTimeout: number | null = null;
+  private direction: AnimationDirection = 'side';
+  private lastVisualX: number;
+  private lastLaneOffset: number;
+  private rootMotionTimeout: number | null = null;
 
   private nameEl!: HTMLElement;
   private healthBarEl!: HTMLElement;
@@ -51,10 +55,14 @@ export class Fighter {
     // X is tracked as the fighter's center position in px relative to the arena
     this.currentX = this.isPlayer ? -160 : this.arenaWidth + 160;
     this.entryX = this.isPlayer ? this.arenaWidth * 0.2 : this.arenaWidth * 0.8;
+    this.lastVisualX = this.currentX;
+    this.lastLaneOffset = this.laneOffsets[this.laneIndex] ?? 0;
 
     // Create sprite instance
     this.spriteContainer = createElement('div');
-    this.sprite = new Sprite(this.spriteContainer);
+    this.sprite = new Sprite(this.spriteContainer, {
+      onRootMotion: (distance: number, duration: number) => this.applyRootMotion(distance, duration),
+    });
 
     this.createFighterElement();
   }
@@ -112,7 +120,10 @@ export class Fighter {
    */
   enter(): void {
     setTimeout(() => {
-      this.sprite.setAnimation('walk');
+      this.sprite.setAnimation('walk', {
+        direction: 'oblique',
+        blend: true,
+      });
       this.moveToX(this.entryX, 900);
 
       // After entrance, turn enemy to face player (flip from left to right)
@@ -128,47 +139,71 @@ export class Fighter {
    * Stop walking and go idle
    */
   idle(): void {
-    this.sprite.setAnimation('idle');
+    this.sprite.setAnimation('idle', {
+      direction: this.direction,
+      blend: true,
+    });
   }
 
   /**
    * Perform attack animation
    */
   attack(): void {
-    this.sprite.setAnimation('attack');
-
     const lungeDistance = MOVEMENT.LUNGE_DISTANCE * (this.isPlayer ? 1 : -1);
-    this.setImpulse(lungeDistance, 300);
+    this.sprite.setAnimation('attack', {
+      direction: this.direction,
+      blend: true,
+      rootMotion: {
+        distance: lungeDistance * 0.9,
+        duration: TIMING.LUNGE_DURATION,
+      },
+      layers: ['weapon-trail'],
+    });
     setTimeout(() => {
-      this.clearImpulse();
-      this.sprite.setAnimation('idle');
-    }, 300);
+      this.sprite.setAnimation('idle', { direction: this.direction, blend: true });
+    }, TIMING.ATTACK_DURATION);
   }
 
   block(): void {
-    this.sprite.setAnimation('block');
+    this.sprite.setAnimation('block', {
+      direction: this.direction,
+      blend: true,
+      layers: ['shield-brace'],
+    });
   }
 
   parry(): void {
-    this.sprite.setAnimation('parry');
+    this.sprite.setAnimation('parry', {
+      direction: this.direction,
+      blend: true,
+      layers: ['weapon-trail'],
+    });
   }
 
   stagger(direction: Direction, distance: number): void {
     const delta = direction === 'left' ? -distance : distance;
     this.moveBy(delta, 240, 'retreat');
-    this.setImpulse(delta * 0.2, 200);
-    this.sprite.setAnimation('stagger');
-    setTimeout(() => this.clearImpulse(), 220);
+    this.sprite.setAnimation('stagger', {
+      direction: this.direction,
+      blend: true,
+      rootMotion: {
+        distance: delta * 0.2,
+        duration: 220,
+      },
+    });
   }
 
   /**
    * Play hit animation
    */
   hit(): void {
-    this.sprite.setAnimation('hit');
+    this.sprite.setAnimation('hit', {
+      direction: this.direction,
+      blend: true,
+    });
     setTimeout(() => {
       if (this.data.currentHp > 0) {
-        this.sprite.setAnimation('idle');
+        this.sprite.setAnimation('idle', { direction: this.direction, blend: true });
       }
     }, 400);
   }
@@ -177,14 +212,20 @@ export class Fighter {
    * Play death animation
    */
   death(): void {
-    this.sprite.setAnimation('death');
+    this.sprite.setAnimation('death', {
+      direction: this.direction,
+      blend: true,
+    });
   }
 
   /**
    * Play victory animation
    */
   victory(): void {
-    this.sprite.setAnimation('victory');
+    this.sprite.setAnimation('victory', {
+      direction: this.direction,
+      blend: true,
+    });
   }
 
   /**
@@ -251,17 +292,23 @@ export class Fighter {
    */
   dodge(direction: Direction, distance: number = MOVEMENT.DODGE.DISTANCE): number {
     const delta = direction === 'left' ? -distance : distance;
-    const moved = this.moveBy(delta, 180, 'retreat');
-    this.setImpulse(delta * 0.35, 180);
-    setTimeout(() => this.clearImpulse(), 200);
+    const moved = this.moveBy(delta, 180, 'retreat', {
+      direction: this.direction,
+      rootMotion: { distance: delta * 0.55, duration: 200 },
+      layers: ['head-track'],
+      blend: true,
+    });
     return moved;
   }
 
   dash(direction: Direction, distance: number = MOVEMENT.DASH.DISTANCE): number {
     const delta = direction === 'left' ? -distance : distance;
-    const moved = this.moveBy(delta, 180, 'dash');
-    this.setImpulse(delta * 0.2, 200);
-    setTimeout(() => this.clearImpulse(), 220);
+    const moved = this.moveBy(delta, 180, 'dash', {
+      direction: this.direction,
+      rootMotion: { distance: delta * 0.35, duration: 200 },
+      layers: ['weapon-trail'],
+      blend: true,
+    });
     return moved;
   }
 
@@ -284,7 +331,7 @@ export class Fighter {
     if (nextLane === this.laneIndex) return false;
     this.laneIndex = nextLane;
     this.applyPosition(200);
-    this.setFootworkAnimation('strafe', 320);
+    this.setFootworkAnimation('strafe', 320, { direction: this.direction, blend: true });
     return true;
   }
 
@@ -302,6 +349,10 @@ export class Fighter {
       clearTimeout(this.footworkTimeout);
       this.footworkTimeout = null;
     }
+    if (this.rootMotionTimeout) {
+      clearTimeout(this.rootMotionTimeout);
+      this.rootMotionTimeout = null;
+    }
   }
 
   private moveToX(x: number, durationMs: number): void {
@@ -309,7 +360,12 @@ export class Fighter {
     this.applyPosition(durationMs);
   }
 
-  private moveBy(deltaX: number, durationMs: number, animation?: SpriteAnimation): number {
+  private moveBy(
+    deltaX: number,
+    durationMs: number,
+    animation?: SpriteAnimation,
+    animationOptions: AnimationOptions = {}
+  ): number {
     const halfWidth = this.getHalfWidth();
     const minX = MOVEMENT.ARENA_PADDING + halfWidth;
     const maxX = this.arenaWidth - MOVEMENT.ARENA_PADDING - halfWidth;
@@ -322,7 +378,12 @@ export class Fighter {
     this.applyPosition(durationMs);
 
     if (animation) {
-      this.setFootworkAnimation(animation, durationMs + 120);
+      const optionsWithDirection: AnimationOptions = {
+        direction: this.direction,
+        blend: true,
+        ...animationOptions,
+      };
+      this.setFootworkAnimation(animation, durationMs + 120, optionsWithDirection);
     }
 
     return applied;
@@ -335,9 +396,33 @@ export class Fighter {
   private applyPosition(durationMs: number): void {
     const fighterWidth = this.fighterEl.offsetWidth || 100;
     const left = this.currentX - fighterWidth / 2;
+    const laneOffset = this.laneOffsets[this.laneIndex] ?? 0;
+    const deltaX = this.currentX - this.lastVisualX;
+    const deltaLane = laneOffset - this.lastLaneOffset;
+
     this.fighterEl.style.transition = `left ${durationMs}ms ease, transform ${durationMs}ms ease`;
     this.fighterEl.style.left = `${left}px`;
+
+    const nextDirection = this.computeDirection(deltaX, deltaLane);
+    this.setDirection(nextDirection);
+    this.lastVisualX = this.currentX;
+    this.lastLaneOffset = laneOffset;
+
     this.applyTransform();
+  }
+
+  private computeDirection(deltaX: number, deltaLane: number): AnimationDirection {
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaLane);
+
+    if (absY > absX * 1.25) return 'front';
+    if (absY > absX * 0.45) return 'oblique';
+    return 'side';
+  }
+
+  private setDirection(direction: AnimationDirection): void {
+    this.direction = direction;
+    this.sprite.setDirection(direction);
   }
 
   private applyTransform(): void {
@@ -347,30 +432,65 @@ export class Fighter {
     this.fighterEl.style.transform = transforms;
   }
 
-  private setImpulse(offsetX: number, durationMs: number): void {
-    this.fighterEl.style.transition = `transform ${durationMs}ms ease`;
-    this.impulseTransform = `translateX(${offsetX}px)`;
+  private applyRootMotion(distance: number, durationMs: number): void {
+    if (durationMs <= 0) return;
+    if (this.rootMotionTimeout) {
+      clearTimeout(this.rootMotionTimeout);
+    }
+
+    this.extendTransformTransition(durationMs, 'cubic-bezier(0.22, 0.75, 0.3, 1)');
+    this.impulseTransform = `translateX(${distance}px)`;
     this.applyTransform();
+
+    this.rootMotionTimeout = window.setTimeout(() => {
+      this.extendTransformTransition(Math.max(140, durationMs * 0.6), 'ease-out');
+      this.impulseTransform = '';
+      this.applyTransform();
+      this.rootMotionTimeout = null;
+    }, durationMs);
   }
 
-  private clearImpulse(): void {
-    this.impulseTransform = '';
-    this.applyTransform();
+  private extendTransformTransition(durationMs: number, easing: string): void {
+    const existing = this.fighterEl.style.transition
+      .split(',')
+      .map((part) => part.trim())
+      .filter((part) => part && !part.startsWith('transform'));
+
+    existing.push(`transform ${durationMs}ms ${easing}`);
+    this.fighterEl.style.transition = existing.join(', ');
   }
 
-  private setFootworkAnimation(animation: SpriteAnimation, durationMs: number): void {
+  private setFootworkAnimation(
+    animation: SpriteAnimation,
+    durationMs: number,
+    options: AnimationOptions = {}
+  ): void {
     if (this.footworkTimeout) {
       clearTimeout(this.footworkTimeout);
     }
 
-    this.sprite.setAnimation(animation);
+    const merged: AnimationOptions = {
+      direction: options.direction ?? this.direction,
+      blend: true,
+      ...options,
+    };
+
+    this.sprite.setAnimation(animation, merged);
     this.footworkTimeout = window.setTimeout(() => {
       // Avoid interrupting attack/hit/ko animations
       const current = this.sprite.getCurrentAnimation();
-      if (current === 'attack' || current === 'hit' || current === 'death' || current === 'victory') {
+      if (
+        current === 'attack' ||
+        current === 'hit' ||
+        current === 'block' ||
+        current === 'parry' ||
+        current === 'stagger' ||
+        current === 'death' ||
+        current === 'victory'
+      ) {
         return;
       }
-      this.sprite.setAnimation('idle');
+      this.sprite.setAnimation('idle', { direction: this.direction, blend: true });
     }, durationMs);
   }
 }
