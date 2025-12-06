@@ -32,25 +32,7 @@
 - [x] Integrate directional lighting/shadows to ground characters in the arena
 
 ### Phase 6: AI Behaviors
-- [ ] Build behavior trees or utility AI that choose between attack, block, dodge, reposition based on spacing/stamina
-- [ ] Add feints, baits, and delayed attacks to prevent pattern exploitation
-- [ ] Implement difficulty tiers that adjust reaction windows, aggression, and mistake rates
-- [ ] Add awareness of arena bounds and obstacle avoidance
-
-### Phase 7: Controls, UX, and Feedback
-- [ ] Add input buffering and queueing for chained attacks/dodges
-- [ ] Expose keybinds/controller mapping and on-screen tutorials for new mechanics
-- [ ] Enhance HUD: stamina, block meter, parry window cues, spacing indicators, and threat arrows
-- [ ] Add slow-motion replays or end-of-round highlights showing key exchanges
-
-### Phase 8: Performance, Testing, and Tooling
-- [ ] Optimize animation playback (sprite atlas packing, GPU-friendly shaders, culling off-screen VFX)
-- [ ] Add deterministic replay recording for debugging combat behaviors
-- [ ] Create automated tests for combat rules (iframes, block stamina drain, hitbox alignment)
-- [ ] Profile frame times and memory during heavy VFX to set performance budgets
-
-### Phase 9: Asset Pipeline
-- [ ] Define asset specs for new animation sets (frame counts, directions, resolutions)
-- [ ] Establish naming conventions and import scripts for animations/VFX
-- [ ] Set up a quick preview tool to inspect hitboxes and animation timing
-- [ ] Add compression/optimization steps for textures, audio, and sprite sheets
+- [x] Build behavior trees or utility AI that choose between attack, block, dodge, reposition based on spacing/stamina
+- [x] Add feints, baits, and delayed attacks to prevent pattern exploitation
+- [x] Implement difficulty tiers that adjust reaction windows, aggression, and mistake rates
+- [x] Add awareness of arena bounds and obstacle avoidance

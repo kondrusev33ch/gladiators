@@ -383,6 +383,15 @@ export class Fighter {
     return this.currentX;
   }
 
+  getArenaBounds(): { left: number; right: number; width: number } {
+    const halfWidth = this.getHalfWidth();
+    return {
+      left: MOVEMENT.ARENA_PADDING + halfWidth,
+      right: this.arenaWidth - MOVEMENT.ARENA_PADDING - halfWidth,
+      width: this.arenaWidth,
+    };
+  }
+
   /**
    * Clean up
    */

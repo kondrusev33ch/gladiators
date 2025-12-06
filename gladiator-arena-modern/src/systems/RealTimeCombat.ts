@@ -22,6 +22,8 @@ import { clamp } from '../utils/math';
 import type { Fighter as FighterComponent } from '../components/arena/Fighter';
 import type { Effects } from './Effects';
 import type { SpacingBand, SpacingStatus } from '../types/game.types';
+import { BehaviorAI, difficultyProfiles } from './BehaviorAI';
+import type { BehaviorContext, FootworkAction } from '../types/ai.types';
 
 type Direction = 'left' | 'right';
 
@@ -36,6 +38,7 @@ interface RuntimeFighter {
   hurtbox: Hurtbox;
   invulnerableUntil: number;
   nextEvadeAllowed: number;
+  staminaRegenUnlock: number;
 }
 
 interface CombatContext {
@@ -73,6 +76,8 @@ export class RealTimeCombat {
   private clock = 0;
   private navAccumulator = 0;
   private spacingAccumulator = 0;
+  private brains: Record<FighterId, BehaviorAI> | null = null;
+  private aiContexts: Record<FighterId, BehaviorContext> | null = null;
 
   start(context: CombatContext): void {
     this.stop();
@@ -86,6 +91,12 @@ export class RealTimeCombat {
       enemy: this.createRuntimeFighter('enemy', context.enemy, context.enemyComponent),
     };
 
+    this.brains = {
+      player: new BehaviorAI(difficultyProfiles.veteran),
+      enemy: new BehaviorAI(difficultyProfiles.champion),
+    };
+    this.aiContexts = null;
+
     this.emitSpacing();
     this.running = true;
     this.loop.start((step: number) => this.update(step));
@@ -96,6 +107,8 @@ export class RealTimeCombat {
     this.running = false;
     this.loop.stop();
     this.runtime = null;
+    this.brains = null;
+    this.aiContexts = null;
   }
 
   private createRuntimeFighter(
@@ -123,6 +136,7 @@ export class RealTimeCombat {
       },
       invulnerableUntil: 0,
       nextEvadeAllowed: 0,
+      staminaRegenUnlock: 0,
     };
   }
 
@@ -141,6 +155,10 @@ export class RealTimeCombat {
   private spendStamina(fighter: RuntimeFighter, amount: number): void {
     if (amount <= 0) return;
     this.updateStamina(fighter, fighter.data.stamina - amount);
+    fighter.staminaRegenUnlock = Math.max(
+      fighter.staminaRegenUnlock,
+      this.clock + REALTIME.STAMINA.RECOVERY_DELAY
+    );
   }
 
   private updateInitiative(fighter: RuntimeFighter, value: number): void {
@@ -167,20 +185,26 @@ export class RealTimeCombat {
     this.regenMeters(player, stepMs);
     this.regenMeters(enemy, stepMs);
 
-    this.evaluateDefense(player, enemy);
-    this.evaluateDefense(enemy, player);
+    const contexts: Record<FighterId, BehaviorContext> = {
+      player: this.buildAIContext(player, enemy),
+      enemy: this.buildAIContext(enemy, player),
+    };
+    this.aiContexts = contexts;
+
+    this.evaluateDefense(player, enemy, contexts.player);
+    this.evaluateDefense(enemy, player, contexts.enemy);
 
     this.advanceAction(player, enemy, stepMs);
     this.advanceAction(enemy, player, stepMs);
 
     if (this.navAccumulator >= REALTIME.NAVIGATION.CHECK_INTERVAL) {
-      this.handleNavigation(player, enemy, this.navAccumulator);
-      this.handleNavigation(enemy, player, this.navAccumulator);
+      this.handleNavigation(player, enemy, this.navAccumulator, contexts.player);
+      this.handleNavigation(enemy, player, this.navAccumulator, contexts.enemy);
       this.navAccumulator = 0;
     }
 
-    if (!player.action) this.tryQueueAttack(player, enemy);
-    if (!enemy.action) this.tryQueueAttack(enemy, player);
+    if (!player.action) this.tryQueueAttack(player, contexts.player);
+    if (!enemy.action) this.tryQueueAttack(enemy, contexts.enemy);
 
     if (this.spacingAccumulator >= REALTIME.SPACING.UPDATE_INTERVAL) {
       this.emitSpacing();
@@ -191,17 +215,32 @@ export class RealTimeCombat {
   }
 
   private regenMeters(fighter: RuntimeFighter, stepMs: number): void {
-    const staminaGain = (REALTIME.STAMINA.REGEN_PER_SECOND / 1000) * stepMs;
+    if (this.clock < fighter.staminaRegenUnlock) return;
+
+    const actionPenalty =
+      fighter.action && fighter.action.name !== 'stagger'
+        ? REALTIME.STAMINA.ACTION_REGEN_PENALTY
+        : 1;
+
+    let staminaGain = (REALTIME.STAMINA.REGEN_PER_SECOND / 1000) * stepMs * actionPenalty;
+    const staminaRatio = fighter.data.stamina / Math.max(1, fighter.data.maxStamina);
+    if (staminaRatio <= REALTIME.STAMINA.LOW_STAMINA_THRESHOLD) {
+      staminaGain *= REALTIME.STAMINA.LOW_STAMINA_BONUS;
+    }
+
     const initiativeGain = (REALTIME.INITIATIVE.REGEN_PER_SECOND / 1000) * stepMs;
 
     this.updateStamina(fighter, fighter.data.stamina + staminaGain);
     this.updateInitiative(fighter, fighter.data.initiative + initiativeGain);
   }
 
-  private tryQueueAttack(fighter: RuntimeFighter, opponent: RuntimeFighter): void {
-    if (!this.runtime || !this.context) return;
+  private tryQueueAttack(fighter: RuntimeFighter, context: BehaviorContext): void {
+    if (!this.runtime || !this.context || !this.brains) return;
 
     const { ATTACK } = REALTIME;
+    const brain = this.brains[fighter.id];
+    const plan = brain.chooseAttack(context);
+    if (!plan) return;
 
     if (
       fighter.data.initiative < fighter.data.initiativeThreshold ||
@@ -210,23 +249,26 @@ export class RealTimeCombat {
       return;
     }
 
-    const distance = this.getDistance(fighter, opponent);
-    const reach = this.getAttackReach(ATTACK);
-    const inRange = distance <= reach + 8;
-    const closingSoon = distance <= REALTIME.SPACING.SWEET_MAX + 25;
-
-    if (!inRange && !closingSoon) {
-      return;
-    }
+    const inRange = context.distance <= context.attackReach + 8;
+    const closingSoon = context.distance <= REALTIME.SPACING.SWEET_MAX + 30;
+    if (!inRange && !closingSoon) return;
 
     this.updateInitiative(fighter, fighter.data.initiative - ATTACK.initiativeCost);
     this.updateStamina(fighter, fighter.data.stamina - ATTACK.staminaCost);
 
-    const action: ActionState = {
+    const action: AttackState = {
       name: 'attack',
       phase: 'windup',
       elapsed: 0,
       hasHit: false,
+      behavior:
+        plan.style === 'standard'
+          ? { tag: 'standard' }
+          : {
+              tag: plan.style,
+              windupHold: plan.windupHold,
+              feintAt: plan.feintAt,
+            },
       config: ATTACK,
     };
 
@@ -266,10 +308,22 @@ export class RealTimeCombat {
     stepMs: number
   ): void {
     action.elapsed += stepMs;
+    const behavior = action.behavior;
+    const windupHold = behavior?.windupHold ?? 0;
+    const feintThreshold =
+      behavior?.tag === 'feint' ? behavior.feintAt ?? action.config.windup * 0.72 : null;
 
     switch (action.phase) {
       case 'windup':
-        if (action.elapsed >= action.config.windup) {
+        if (behavior?.tag === 'feint' && !behavior.hasFeinted && feintThreshold !== null && action.elapsed >= feintThreshold) {
+          behavior.hasFeinted = true;
+          action.phase = 'recovery';
+          attacker.hitbox.active = false;
+          attacker.component.showText('FEINT');
+          break;
+        }
+
+        if (action.elapsed >= action.config.windup + windupHold) {
           action.phase = 'active';
           attacker.hitbox.active = true;
           this.tryEvade(defender, attacker);
@@ -278,7 +332,7 @@ export class RealTimeCombat {
         break;
       case 'active':
         this.checkCollision(attacker, defender, action);
-        if (action.elapsed >= action.config.windup + action.config.active) {
+        if (action.elapsed >= action.config.windup + windupHold + action.config.active) {
           action.phase = 'recovery';
           attacker.hitbox.active = false;
         }
@@ -286,9 +340,9 @@ export class RealTimeCombat {
       case 'recovery':
         if (
           action.elapsed >=
-          action.config.windup + action.config.active + action.config.recovery
+          action.config.windup + windupHold + action.config.active + action.config.recovery
         ) {
-          if (!action.hasHit) {
+          if (!action.hasHit && behavior?.tag !== 'feint') {
             this.handleWhiff(attacker, defender);
           }
           attacker.action = null;
@@ -422,16 +476,22 @@ export class RealTimeCombat {
   private handleNavigation(
     fighter: RuntimeFighter,
     opponent: RuntimeFighter,
-    elapsedMs: number
+    elapsedMs: number,
+    context: BehaviorContext
   ): void {
     if (!this.context || fighter.action || fighter.data.stamina <= 2) return;
 
-    // Use the fighters' logical positions (ignoring temporary animation impulses)
-    // so footwork decisions aren't overreacting to attack lunges.
-    const distance = this.getBaseDistance(fighter, opponent);
-    const opponentPos = opponent.component.getCenterX();
-    const dtSeconds = elapsedMs / 1000;
+    const staminaRatio = fighter.data.stamina / Math.max(1, fighter.data.maxStamina);
+    const shouldRest =
+      staminaRatio < REALTIME.STAMINA.LOW_STAMINA_THRESHOLD * 0.7 &&
+      context.distance > REALTIME.SPACING.DANGER + 6 &&
+      context.edges.nearest > 18;
+    if (shouldRest) return;
 
+    const brain = this.brains?.[fighter.id];
+    const decision: FootworkAction = brain?.chooseFootwork(context) ?? 'hold';
+
+    const dtSeconds = elapsedMs / 1000;
     const forwardStep = Math.min(
       REALTIME.NAVIGATION.MAX_STEP,
       MOVEMENT.FOOTWORK.SPEED * dtSeconds
@@ -440,22 +500,44 @@ export class RealTimeCombat {
       REALTIME.NAVIGATION.MAX_STEP,
       MOVEMENT.FOOTWORK.BACKPEDAL_SPEED * dtSeconds
     );
-
+    const opponentPos = opponent.component.getCenterX();
     const minimumGap = REALTIME.HURTBOX.radius * 1.6;
     let moved = 0;
 
-    if (distance > REALTIME.SPACING.SWEET_MAX) {
-      const cappedStep = Math.max(0, Math.min(forwardStep, distance - minimumGap));
-      moved = fighter.component.advanceToward(opponentPos, cappedStep);
-    } else if (distance < REALTIME.SPACING.DANGER) {
-      moved = fighter.component.retreatFrom(opponentPos, retreatStep);
-    } else if (Math.random() < 0.25) {
-      const laneDir: -1 | 1 = Math.random() > 0.5 ? 1 : -1;
-      const strafed = fighter.component.strafe(laneDir);
-      if (strafed) {
-        this.spendStamina(fighter, MOVEMENT.FOOTWORK.COST_PER_SECOND * dtSeconds * 0.6);
-        return;
+    const nearWall = context.edges.nearest < 20;
+    const forcedRetreat = nearWall && decision === 'advance';
+
+    switch (forcedRetreat ? 'retreat' : decision) {
+      case 'advance': {
+        const distance = this.getBaseDistance(fighter, opponent);
+        const cappedStep = Math.max(0, Math.min(forwardStep, distance - minimumGap));
+        moved = fighter.component.advanceToward(opponentPos, cappedStep);
+        break;
       }
+      case 'retreat': {
+        moved = fighter.component.retreatFrom(opponentPos, retreatStep);
+        break;
+      }
+      case 'circle': {
+        const laneDir: -1 | 1 =
+          context.edges.leftSpace < context.edges.rightSpace ? 1 : -1;
+        const strafed = fighter.component.strafe(laneDir);
+        if (strafed) {
+          this.spendStamina(fighter, MOVEMENT.FOOTWORK.COST_PER_SECOND * dtSeconds * 0.6);
+          return;
+        }
+        break;
+      }
+      case 'hold':
+        if (nearWall) {
+          const laneDir: -1 | 1 =
+            context.edges.leftSpace < context.edges.rightSpace ? 1 : -1;
+          const strafed = fighter.component.strafe(laneDir);
+          if (strafed) {
+            this.spendStamina(fighter, MOVEMENT.FOOTWORK.COST_PER_SECOND * dtSeconds * 0.4);
+          }
+        }
+        return;
     }
 
     if (moved !== 0) {
@@ -484,6 +566,41 @@ export class RealTimeCombat {
     return 'out-of-range';
   }
 
+  private buildAIContext(
+    fighter: RuntimeFighter,
+    opponent: RuntimeFighter
+  ): BehaviorContext {
+    const distance = this.getBaseDistance(fighter, opponent);
+    const spacing = this.getSpacingBand(distance);
+    const bounds = fighter.component.getArenaBounds();
+    const centerX = fighter.component.getCenterX();
+
+    return {
+      clock: this.clock,
+      distance,
+      spacing,
+      fighter: {
+        stamina: fighter.data.stamina,
+        maxStamina: fighter.data.maxStamina,
+        initiative: fighter.data.initiative,
+        initiativeThreshold: fighter.data.initiativeThreshold,
+        action: fighter.action,
+        centerX,
+      },
+      opponent: {
+        stamina: opponent.data.stamina,
+        action: opponent.action,
+        centerX: opponent.component.getCenterX(),
+      },
+      edges: {
+        leftSpace: centerX - bounds.left,
+        rightSpace: bounds.right - centerX,
+        nearest: Math.min(centerX - bounds.left, bounds.right - centerX),
+      },
+      attackReach: this.getAttackReach(REALTIME.ATTACK),
+    };
+  }
+
   private canDefensivelyCancel(action: ActionState | null): boolean {
     if (!isAttackAction(action)) return false;
 
@@ -501,16 +618,30 @@ export class RealTimeCombat {
     return false;
   }
 
-  private evaluateDefense(defender: RuntimeFighter, attacker: RuntimeFighter): void {
-    if (!isAttackAction(attacker.action)) return;
+  private evaluateDefense(
+    defender: RuntimeFighter,
+    attacker: RuntimeFighter,
+    context: BehaviorContext
+  ): void {
+    if (!isAttackAction(attacker.action) || !this.brains) return;
 
+    const brain = this.brains[defender.id];
     const action = attacker.action;
     const distance = this.getDistance(attacker, defender);
     const reach = this.getAttackReach(action.config) + 12;
 
     const threatActive = action.phase === 'active';
-    const threatImminent = action.phase === 'windup' && action.elapsed >= action.config.windup * 0.6;
+    const threatImminent =
+      action.phase === 'windup' && action.elapsed >= action.config.windup * 0.55;
     if (!(threatActive || threatImminent) || distance > reach || defender.data.stamina <= 4) return;
+
+    const decision = brain.chooseDefense(context, {
+      active: threatActive,
+      imminent: threatImminent,
+      distance,
+    });
+
+    if (!decision) return;
 
     if (defender.action) {
       if (this.canDefensivelyCancel(defender.action)) {
@@ -522,10 +653,7 @@ export class RealTimeCombat {
       }
     }
 
-    const canParry = defender.data.stamina >= REALTIME.PARRY.staminaCost;
-    const shouldParry = canParry && Math.random() > 0.55;
-
-    if (shouldParry) {
+    if (decision === 'parry') {
       this.startParry(defender);
     } else {
       this.startBlock(defender);
@@ -604,37 +732,46 @@ export class RealTimeCombat {
   }
 
   private tryEvade(defender: RuntimeFighter, attacker: RuntimeFighter): void {
-    if (!this.context || defender.action) return;
-
+    if (!this.context || defender.action || !this.brains) return;
     if (this.clock < defender.nextEvadeAllowed) return;
 
+    const aiContext = this.aiContexts?.[defender.id];
     const distance = this.getDistance(attacker, defender);
+    const threat = { active: true, imminent: false, distance };
+    const brain = this.brains[defender.id];
+
+    const decision = brain.chooseEvade(
+      aiContext ??
+        this.buildAIContext(defender, attacker),
+      threat
+    );
+
+    if (!decision) return;
+
     const attackerPos = attacker.component.getPosition().x;
     const defenderPos = defender.component.getPosition().x;
-    const awayDirection: Direction = defenderPos < attackerPos ? 'left' : 'right';
-    const closeThreat = distance < REALTIME.SPACING.SWEET_MIN;
+    const bounds = defender.component.getArenaBounds();
+    const spaceLeft = defenderPos - bounds.left;
+    const spaceRight = bounds.right - defenderPos;
 
-    if (
-      distance < REALTIME.SPACING.DANGER &&
-      defender.data.stamina >= MOVEMENT.DASH.STAMINA_COST &&
-      Math.random() < 0.4
-    ) {
+    let awayDirection: Direction = defenderPos < attackerPos ? 'left' : 'right';
+    if (awayDirection === 'left' && spaceLeft < MOVEMENT.DODGE.DISTANCE * 0.75 && spaceRight > spaceLeft) {
+      awayDirection = 'right';
+    } else if (awayDirection === 'right' && spaceRight < MOVEMENT.DODGE.DISTANCE * 0.75 && spaceLeft > spaceRight) {
+      awayDirection = 'left';
+    }
+
+    if (decision === 'dash') {
       const dashed = this.executeDash(defender, awayDirection);
       if (dashed) {
         defender.nextEvadeAllowed = this.clock + 700;
-        return;
       }
+      return;
     }
 
-    if (
-      defender.data.stamina >= MOVEMENT.DODGE.STAMINA_COST &&
-      closeThreat &&
-      Math.random() < 0.22
-    ) {
-      const dodged = this.executeDodge(defender, awayDirection);
-      if (dodged) {
-        defender.nextEvadeAllowed = this.clock + 620;
-      }
+    const dodged = this.executeDodge(defender, awayDirection);
+    if (dodged) {
+      defender.nextEvadeAllowed = this.clock + 620;
     }
   }
 

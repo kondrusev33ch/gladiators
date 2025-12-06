@@ -33,8 +33,12 @@ export const REALTIME: RealTimeCombatConfig = {
   MAX_STEPS_PER_FRAME: 5,
   MAX_FRAME_MS: 48,
   STAMINA: {
-    MAX: 100,
-    REGEN_PER_SECOND: 22,
+    MAX: 90,
+    REGEN_PER_SECOND: 14,
+    RECOVERY_DELAY: 650,
+    LOW_STAMINA_THRESHOLD: 0.45,
+    LOW_STAMINA_BONUS: 1.35,
+    ACTION_REGEN_PENALTY: 0.55,
   },
   INITIATIVE: {
     MAX: 100,
@@ -105,16 +109,16 @@ export const MOVEMENT: MovementConfig = {
     SPEED: 240, // px per second
     BACKPEDAL_SPEED: 280, // px per second
     STRAFE_DISTANCE: 55,
-    COST_PER_SECOND: 5,
+    COST_PER_SECOND: 7,
   },
   DODGE: {
     DISTANCE: 32,
-    STAMINA_COST: 12,
+    STAMINA_COST: 14,
     IFRAMES: 260,
   },
   DASH: {
     DISTANCE: 115,
-    STAMINA_COST: 18,
+    STAMINA_COST: 22,
     IFRAMES: 320,
   },
 };

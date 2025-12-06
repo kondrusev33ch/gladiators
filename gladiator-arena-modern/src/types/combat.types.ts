@@ -44,6 +44,13 @@ export interface AttackTiming {
   };
 }
 
+export interface AttackBehavior {
+  tag: 'standard' | 'feint' | 'delayed';
+  windupHold?: number;
+  feintAt?: number;
+  hasFeinted?: boolean;
+}
+
 export interface BlockTiming {
   windup: number;
   active: number;
@@ -77,6 +84,7 @@ export interface BaseActionState<Name extends ActionName = ActionName> {
 export interface AttackState extends BaseActionState<'attack'> {
   phase: ActionPhase;
   hasHit: boolean;
+  behavior?: AttackBehavior;
   config: AttackTiming;
 }
 
@@ -122,6 +130,10 @@ export interface RealTimeCombatConfig {
   STAMINA: {
     MAX: number;
     REGEN_PER_SECOND: number;
+    RECOVERY_DELAY: number;
+    LOW_STAMINA_THRESHOLD: number;
+    LOW_STAMINA_BONUS: number;
+    ACTION_REGEN_PENALTY: number;
   };
   INITIATIVE: {
     MAX: number;
