@@ -13,11 +13,11 @@
 **Goal:** Upgrade sprite system with better graphics and effects
 
 #### 7.1 Advanced Canvas Rendering
-- [ ] Implement layered canvas system (background, arena floor, fighters, effects, UI)
-- [ ] Add sprite batching for performance optimization
-- [ ] Implement viewport culling (don't render off-screen elements)
-- [ ] Create particle system for dust, blood, sparks
-- [ ] Add sprite shadows (dynamic shadow sprites beneath fighters)
+- [x] Implement layered canvas system (background, arena floor, fighters, effects, UI)
+- [x] Add sprite batching for performance optimization
+- [x] Implement viewport culling (don't render off-screen elements)
+- [x] Create particle system for dust, blood, sparks
+- [x] Add sprite shadows (dynamic shadow sprites beneath fighters)
 
 #### 7.2 Camera & Screen Effects
 - [ ] Implement camera zoom/pan for team battles (auto-adjust to show all fighters)
