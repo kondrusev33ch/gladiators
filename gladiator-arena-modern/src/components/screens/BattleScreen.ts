@@ -9,6 +9,7 @@ import { eventBus, EVENTS } from '../../core/EventBus';
 import { Effects } from '../../systems/Effects';
 import type { Fighter } from '../../types/gladiator.types';
 import type { LogType } from '../../types/game.types';
+import { CanvasArena } from '../../systems/rendering/CanvasArena';
 
 export class BattleScreen {
   private container: HTMLElement;
@@ -18,6 +19,7 @@ export class BattleScreen {
   private enemyFighter: FighterComponent | null = null;
   private combatLog: CombatLog | null = null;
   private effects: Effects | null = null;
+  private renderer: CanvasArena | null = null;
 
   constructor(containerId: string = '#screen-battle') {
     this.container = $required(containerId);
@@ -35,9 +37,16 @@ export class BattleScreen {
     // Create arena
     this.arenaElement = this.createArena();
 
+    // Initialize layered canvas renderer
+    if (this.arenaElement) {
+      this.renderer = new CanvasArena(this.arenaElement);
+      this.renderer.setRenderBodies(false); // keep DOM sprites visible
+      this.renderer.start();
+    }
+
     // Initialize effects system
     if (this.arenaElement) {
-      this.effects = new Effects(this.arenaElement);
+      this.effects = new Effects(this.arenaElement, this.renderer);
     }
 
     // Create combat log container with fixed height
@@ -66,6 +75,11 @@ export class BattleScreen {
              style="background: linear-gradient(to bottom, #c4a574 0%, #8b6914 100%);"></div>
       `,
     });
+    const ground = arena.querySelector('.arena__ground') as HTMLElement | null;
+    if (ground) {
+      ground.style.opacity = '0';
+      ground.style.pointerEvents = 'none';
+    }
 
     // Create VS badge
     this.vsElement = createElement('div', {
@@ -112,13 +126,19 @@ export class BattleScreen {
     this.enemyFighter?.destroy();
 
     // Create player fighter (left side)
-    this.playerFighter = new FighterComponent(this.arenaElement, player, true);
+    this.playerFighter = new FighterComponent(
+      this.arenaElement,
+      player,
+      true,
+      this.renderer ?? undefined
+    );
 
     // Create enemy fighter (right side)
     this.enemyFighter = new FighterComponent(
       this.arenaElement,
       enemy,
-      false
+      false,
+      this.renderer ?? undefined
     );
 
     // Animate fighters walking in
@@ -195,6 +215,9 @@ export class BattleScreen {
     this.enemyFighter = null;
     this.combatLog?.clear();
     this.effects?.clear();
+    this.renderer?.removeFighter('player');
+    this.renderer?.removeFighter('enemy');
+    this.renderer?.clearParticles();
   }
 
   /**
@@ -203,6 +226,7 @@ export class BattleScreen {
   destroy(): void {
     this.reset();
     this.effects?.destroy();
+    this.renderer?.destroy();
     this.container.innerHTML = '';
   }
 }

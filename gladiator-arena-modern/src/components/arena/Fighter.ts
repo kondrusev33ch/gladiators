@@ -9,6 +9,7 @@ import { createElement } from '../../utils/dom';
 import { MOVEMENT, TIMING } from '../../data/config';
 import { eventBus, EVENTS } from '../../core/EventBus';
 import { clamp } from '../../utils/math';
+import type { CanvasArena, FighterVisualState } from '../../systems/rendering/CanvasArena';
 
 type Direction = 'left' | 'right';
 
@@ -18,6 +19,7 @@ export class Fighter {
   private data: FighterData;
   private isPlayer: boolean;
   private arenaWidth: number;
+  private renderer?: CanvasArena;
 
   private currentX: number;
   private entryX: number;
@@ -30,6 +32,11 @@ export class Fighter {
   private lastVisualX: number;
   private lastLaneOffset: number;
   private rootMotionTimeout: number | null = null;
+  private readonly renderId: 'player' | 'enemy';
+  private renderTint: string;
+  private renderAccent: string;
+  private facing: 'left' | 'right';
+  private currentPose: FighterVisualState['pose'] = 'idle';
 
   private nameEl!: HTMLElement;
   private healthBarEl!: HTMLElement;
@@ -43,11 +50,13 @@ export class Fighter {
   constructor(
     arena: HTMLElement,
     data: FighterData,
-    isPlayer: boolean
+    isPlayer: boolean,
+    renderer?: CanvasArena
   ) {
     this.container = arena;
     this.data = data;
     this.isPlayer = isPlayer;
+    this.renderer = renderer;
     this.arenaWidth = Math.max(640, this.container.clientWidth || 0);
     this.laneOffsets = MOVEMENT.LANES;
     this.laneIndex = clamp(
@@ -56,6 +65,10 @@ export class Fighter {
       this.laneOffsets.length - 1
     );
     this.id = this.isPlayer ? 'player' : 'enemy';
+    this.renderId = this.id;
+    this.renderTint = this.isPlayer ? '#2563eb' : '#c2410c';
+    this.renderAccent = this.isPlayer ? '#7dd3fc' : '#f59e0b';
+    this.facing = this.isPlayer ? 'right' : 'left';
 
     // X is tracked as the fighter's center position in px relative to the arena
     this.currentX = this.isPlayer ? -160 : this.arenaWidth + 160;
@@ -70,6 +83,7 @@ export class Fighter {
     });
 
     this.createFighterElement();
+    this.registerWithRenderer();
   }
 
   /**
@@ -82,6 +96,7 @@ export class Fighter {
         'data-fighter': this.isPlayer ? 'player' : 'enemy',
       },
     });
+    this.fighterEl.style.minHeight = '160px';
 
     // Set initial off-screen position using inline styles (center-based)
     const fighterWidth = this.fighterEl.offsetWidth || 100;
@@ -137,12 +152,69 @@ export class Fighter {
     this.registerEvents();
   }
 
+  private registerWithRenderer(): void {
+    if (!this.renderer) return;
+    this.renderer.registerFighter(this.renderId, this.buildRenderState());
+    this.syncRenderer();
+  }
+
+  private buildRenderState(): FighterVisualState {
+    const { width, height } = this.getRenderDimensions();
+    const pose = this.currentPose;
+    return {
+      id: this.renderId,
+      x: this.currentX,
+      y: this.getRenderY(),
+      width,
+      height,
+      facing: this.facing,
+      pose,
+      tint: this.renderTint,
+      accent: this.renderAccent,
+      shadowScale: this.shadowScaleForPose(pose),
+      opacity: pose === 'death' ? 0.7 : 1,
+    };
+  }
+
+  private getRenderDimensions(): { width: number; height: number } {
+    const width = this.fighterEl?.offsetWidth || 110;
+    const height = this.fighterEl?.offsetHeight || 170;
+    return { width, height };
+  }
+
+  private getRenderY(): number {
+    const laneOffset = this.laneOffsets[this.laneIndex] ?? 0;
+    const groundY = (this.container?.clientHeight || 280) - 40;
+    return groundY + laneOffset;
+  }
+
+  private shadowScaleForPose(pose: FighterVisualState['pose']): number {
+    switch (pose) {
+      case 'attack':
+        return 1.08;
+      case 'dash':
+        return 1.02;
+      case 'stagger':
+        return 0.9;
+      case 'death':
+        return 0.82;
+      default:
+        return 1;
+    }
+  }
+
+  private syncRenderer(partial: Partial<FighterVisualState> = {}): void {
+    if (!this.renderer) return;
+    const base = this.buildRenderState();
+    this.renderer.updateFighter(this.renderId, { ...base, ...partial });
+  }
+
   /**
    * Enter the arena (walk in animation)
    */
   enter(): void {
     setTimeout(() => {
-      this.sprite.setAnimation('walk', {
+      this.play('walk', {
         direction: 'oblique',
         blend: true,
       });
@@ -151,7 +223,7 @@ export class Fighter {
       // After entrance, turn enemy to face player (flip from left to right)
       if (!this.isPlayer) {
         setTimeout(() => {
-          this.sprite.setFlipped(false);
+          this.setFacing(false);
         }, 1000);
       }
     }, 100);
@@ -161,7 +233,7 @@ export class Fighter {
    * Stop walking and go idle
    */
   idle(): void {
-    this.sprite.setAnimation('idle', {
+    this.play('idle', {
       direction: this.direction,
       blend: true,
     });
@@ -172,7 +244,7 @@ export class Fighter {
    */
   attack(): void {
     const lungeDistance = MOVEMENT.LUNGE_DISTANCE * (this.isPlayer ? 1 : -1);
-    this.sprite.setAnimation('attack', {
+    this.play('attack', {
       direction: this.direction,
       blend: true,
       rootMotion: {
@@ -182,12 +254,12 @@ export class Fighter {
       layers: ['weapon-trail'],
     });
     setTimeout(() => {
-      this.sprite.setAnimation('idle', { direction: this.direction, blend: true });
+      this.play('idle', { direction: this.direction, blend: true });
     }, TIMING.ATTACK_DURATION);
   }
 
   block(): void {
-    this.sprite.setAnimation('block', {
+    this.play('block', {
       direction: this.direction,
       blend: true,
       layers: ['shield-brace'],
@@ -195,7 +267,7 @@ export class Fighter {
   }
 
   parry(): void {
-    this.sprite.setAnimation('parry', {
+    this.play('parry', {
       direction: this.direction,
       blend: true,
       layers: ['weapon-trail'],
@@ -205,7 +277,7 @@ export class Fighter {
   stagger(direction: Direction, distance: number): void {
     const delta = direction === 'left' ? -distance : distance;
     this.moveBy(delta, 240, 'retreat');
-    this.sprite.setAnimation('stagger', {
+    this.play('stagger', {
       direction: this.direction,
       blend: true,
       rootMotion: {
@@ -219,13 +291,13 @@ export class Fighter {
    * Play hit animation
    */
   hit(): void {
-    this.sprite.setAnimation('hit', {
+    this.play('hit', {
       direction: this.direction,
       blend: true,
     });
     setTimeout(() => {
       if (this.data.currentHp > 0) {
-        this.sprite.setAnimation('idle', { direction: this.direction, blend: true });
+        this.play('idle', { direction: this.direction, blend: true });
       }
     }, 400);
   }
@@ -234,7 +306,7 @@ export class Fighter {
    * Play death animation
    */
   death(): void {
-    this.sprite.setAnimation('death', {
+    this.play('death', {
       direction: this.direction,
       blend: true,
     });
@@ -244,7 +316,7 @@ export class Fighter {
    * Play victory animation
    */
   victory(): void {
-    this.sprite.setAnimation('victory', {
+    this.play('victory', {
       direction: this.direction,
       blend: true,
     });
@@ -398,16 +470,54 @@ export class Fighter {
   destroy(): void {
     this.subscriptions.forEach(sub => sub.unsubscribe());
     this.subscriptions = [];
+    this.renderer?.removeFighter(this.renderId);
     this.sprite.destroy();
     this.fighterEl.remove();
     if (this.footworkTimeout) {
-      clearTimeout(this.footworkTimeout);
+      window.clearTimeout(this.footworkTimeout);
       this.footworkTimeout = null;
     }
     if (this.rootMotionTimeout) {
-      clearTimeout(this.rootMotionTimeout);
+      window.clearTimeout(this.rootMotionTimeout);
       this.rootMotionTimeout = null;
     }
+  }
+
+  private play(animation: SpriteAnimation, options: AnimationOptions = {}): void {
+    this.sprite.setAnimation(animation, options);
+    this.currentPose = this.mapPose(animation);
+    this.syncRenderer({ pose: this.currentPose });
+  }
+
+  private mapPose(animation: SpriteAnimation): FighterVisualState['pose'] {
+    switch (animation) {
+      case 'attack':
+        return 'attack';
+      case 'block':
+      case 'parry':
+        return 'block';
+      case 'walk':
+      case 'advance':
+      case 'retreat':
+      case 'strafe':
+      case 'dash':
+        return 'dash';
+      case 'stagger':
+      case 'hit':
+        return 'stagger';
+      case 'victory':
+        return 'victory';
+      case 'death':
+        return 'death';
+      default:
+        return 'idle';
+    }
+  }
+
+  private setFacing(flipped: boolean): void {
+    this.sprite.setFlipped(flipped);
+    this.facing = flipped ? 'left' : 'right';
+    this.syncRenderer();
   }
 
   private moveToX(x: number, durationMs: number): void {
@@ -431,6 +541,7 @@ export class Fighter {
 
     this.currentX = nextX;
     this.applyPosition(durationMs);
+    this.emitFootworkDust(applied, animation);
 
     if (animation) {
       const optionsWithDirection: AnimationOptions = {
@@ -446,6 +557,18 @@ export class Fighter {
 
   private getHalfWidth(): number {
     return (this.fighterEl?.offsetWidth || 100) / 2;
+  }
+
+  private emitFootworkDust(distance: number, animation?: SpriteAnimation): void {
+    if (!this.renderer) return;
+    const travel = Math.abs(distance);
+    const shouldEmit =
+      (animation === 'dash' || animation === 'retreat' || animation === 'advance' || animation === 'strafe') &&
+      travel > 6;
+    if (!shouldEmit) return;
+
+    const magnitude = Math.min(1.4, 0.45 + travel / 90);
+    this.renderer.emitDustBurst(this.currentX, this.getRenderY(), magnitude);
   }
 
   private applyPosition(durationMs: number): void {
@@ -464,6 +587,7 @@ export class Fighter {
     this.lastLaneOffset = laneOffset;
 
     this.applyTransform();
+    this.syncRenderer();
   }
 
   private computeDirection(deltaX: number, deltaLane: number): AnimationDirection {
@@ -490,7 +614,7 @@ export class Fighter {
   private applyRootMotion(distance: number, durationMs: number): void {
     if (durationMs <= 0) return;
     if (this.rootMotionTimeout) {
-      clearTimeout(this.rootMotionTimeout);
+      window.clearTimeout(this.rootMotionTimeout);
     }
 
     this.extendTransformTransition(durationMs, 'cubic-bezier(0.22, 0.75, 0.3, 1)');
@@ -521,7 +645,7 @@ export class Fighter {
     options: AnimationOptions = {}
   ): void {
     if (this.footworkTimeout) {
-      clearTimeout(this.footworkTimeout);
+      window.clearTimeout(this.footworkTimeout);
     }
 
     const merged: AnimationOptions = {
@@ -530,7 +654,7 @@ export class Fighter {
       ...options,
     };
 
-    this.sprite.setAnimation(animation, merged);
+    this.play(animation, merged);
     this.footworkTimeout = window.setTimeout(() => {
       // Avoid interrupting attack/hit/ko animations
       const current = this.sprite.getCurrentAnimation();
@@ -545,7 +669,7 @@ export class Fighter {
       ) {
         return;
       }
-      this.sprite.setAnimation('idle', { direction: this.direction, blend: true });
+      this.play('idle', { direction: this.direction, blend: true });
     }, durationMs);
   }
 

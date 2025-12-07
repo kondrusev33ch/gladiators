@@ -4,6 +4,7 @@
 
 import { wait } from '../utils/async';
 import type { HitStopConfig } from '../types/game.types';
+import type { CanvasArena } from './rendering/CanvasArena';
 
 interface Particle {
   x: number;
@@ -26,9 +27,13 @@ export class Effects {
   private hitStopActive = false;
   private frozen = false;
   private timeScale = 1;
+  private renderer?: CanvasArena;
+  private readonly useCanvasParticles: boolean;
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, renderer?: CanvasArena) {
     this.container = container;
+    this.renderer = renderer;
+    this.useCanvasParticles = !!renderer;
   }
 
   /**
@@ -83,6 +88,11 @@ export class Effects {
    * Create blood particle effect
    */
   blood(x: number, y: number, count: number = 8): void {
+    if (this.renderer) {
+      this.renderer.emitParticles('blood', x, y, count);
+      return;
+    }
+
     for (let i = 0; i < count; i++) {
       const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.5;
       const speed = 2 + Math.random() * 3;
@@ -106,6 +116,11 @@ export class Effects {
    * Create impact particle effect
    */
   impact(x: number, y: number, count: number = 6): void {
+    if (this.renderer) {
+      this.renderer.emitParticles('dust', x, y, count + 2);
+      return;
+    }
+
     for (let i = 0; i < count; i++) {
       const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.3;
       const speed = 1.5 + Math.random() * 2;
@@ -129,6 +144,11 @@ export class Effects {
    * Create sparkle particle effect
    */
   sparkle(x: number, y: number, count: number = 12): void {
+    if (this.renderer) {
+      this.renderer.emitParticles('spark', x, y, count);
+      return;
+    }
+
     for (let i = 0; i < count; i++) {
       const angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.2;
       const speed = 1 + Math.random() * 2.5;
@@ -142,6 +162,30 @@ export class Effects {
         maxLife: 1,
         size: 3 + Math.random() * 2,
         color: `rgb(${255}, ${215 + Math.random() * 40}, ${0 + Math.random() * 100})`,
+      });
+    }
+
+    this.startAnimation();
+  }
+
+  dust(x: number, y: number, count: number = 8): void {
+    if (this.renderer) {
+      this.renderer.emitParticles('dust', x, y, count);
+      return;
+    }
+
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.random() - 0.5) * Math.PI;
+      const speed = 1 + Math.random() * 1.6;
+      this.createParticle({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 0.6,
+        life: 1,
+        maxLife: 1,
+        size: 2 + Math.random() * 2,
+        color: `rgba(201, 162, 39, ${0.4 + Math.random() * 0.3})`,
       });
     }
 
@@ -176,6 +220,7 @@ export class Effects {
    * Update all particles
    */
   private update(deltaTime: number): void {
+    if (this.useCanvasParticles) return;
     if (this.frozen) return;
 
     const gravity = 0.3;
@@ -214,6 +259,7 @@ export class Effects {
    * Start animation loop
    */
   private startAnimation(): void {
+    if (this.useCanvasParticles) return;
     if (this.animationId !== null) return;
 
     let lastTime = performance.now();
@@ -249,8 +295,12 @@ export class Effects {
    */
   clear(): void {
     this.stopAnimation();
-    this.particles.forEach(p => p.element.remove());
-    this.particles = [];
+    if (this.useCanvasParticles) {
+      this.renderer?.clearParticles();
+    } else {
+      this.particles.forEach(p => p.element.remove());
+      this.particles = [];
+    }
     this.container.classList.remove('arena--shake', 'arena--hitstop', 'arena--slowmo');
     this.resetTimeScale();
     this.hitStopActive = false;
