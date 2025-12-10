@@ -566,6 +566,36 @@ export class RealTimeCombat {
     return 'out-of-range';
   }
 
+  private computeImpactForce(damage: number, crit: boolean): number {
+    return damage + (crit ? FX.HEAVY_HIT_THRESHOLD * 0.65 : 0);
+  }
+
+  private applyCameraShake(effects: Effects | null, force: number): void {
+    if (!effects) return;
+    if (force <= FX.HEAVY_HIT_THRESHOLD * 0.45) return;
+
+    const normalized = clamp(force / (FX.HEAVY_HIT_THRESHOLD * 2.2), 0, 1);
+    const min = FX.CAMERA_SHAKE_MIN ?? FX.CAMERA_SHAKE_INTENSITY * 0.6;
+    const max = FX.CAMERA_SHAKE_INTENSITY * 1.05;
+    const intensity = clamp(min + normalized * (max - min), min, max);
+    effects.cameraShake(intensity);
+  }
+
+  private applyChromaticAberration(effects: Effects | null, force: number): void {
+    if (!effects) return;
+    if (force < FX.HEAVY_HIT_THRESHOLD) return;
+
+    const normalized = clamp(
+      (force - FX.HEAVY_HIT_THRESHOLD) / (FX.HEAVY_HIT_THRESHOLD * 1.4),
+      0,
+      1
+    );
+    const baseDuration = FX.CHROMATIC_DURATION ?? 320;
+    const duration = baseDuration + normalized * 180;
+    const magnitude = 0.7 + normalized * 1;
+    effects.chromaticAberration(magnitude, duration);
+  }
+
   private buildAIContext(
     fighter: RuntimeFighter,
     opponent: RuntimeFighter
@@ -848,10 +878,10 @@ export class RealTimeCombat {
     this.context.stats[defender.id].dodges += 1;
 
     effects?.hitStop(FX.PARRY_HITSTOP);
-    effects?.cameraShake(FX.CAMERA_SHAKE_INTENSITY * 0.85);
 
     const counterBase = combatSystem.calculateDamage(defender.data, attacker.data, false);
     const counterDamage = Math.round(counterBase * action.config.counterMultiplier);
+    this.applyCameraShake(effects, this.computeImpactForce(counterDamage, true) * 0.7);
     this.startStagger(attacker, defender, action.config.counterStun, 'parried');
     this.handleCounter(defender, attacker, counterDamage);
 
@@ -880,7 +910,9 @@ export class RealTimeCombat {
     const effects = this.context.effects;
     const pos = defenderComponent.getPosition();
     effects?.impact(pos.x, pos.y, 12);
-    effects?.cameraShake(FX.CAMERA_SHAKE_INTENSITY);
+    const force = this.computeImpactForce(damage, true);
+    this.applyCameraShake(effects, force);
+    this.applyChromaticAberration(effects, force);
 
     eventBus.emit(EVENTS.ATTACK_HIT, {
       attacker: attacker.id,
@@ -933,9 +965,12 @@ export class RealTimeCombat {
     const effects = this.context.effects;
     const pos = defenderComponent.getPosition();
     effects?.blood(pos.x, pos.y, crit ? 12 : 8);
-    const heavyHit = damage >= FX.HEAVY_HIT_THRESHOLD;
-    if (crit || heavyHit) {
-      effects?.cameraShake(crit ? FX.CAMERA_SHAKE_INTENSITY : FX.CAMERA_SHAKE_INTENSITY * 0.85);
+    const force = this.computeImpactForce(damage, crit);
+    if (force >= FX.HEAVY_HIT_THRESHOLD * 0.55) {
+      this.applyCameraShake(effects, force);
+    }
+    if (force >= FX.HEAVY_HIT_THRESHOLD) {
+      this.applyChromaticAberration(effects, force);
     }
 
     const logClass = crit ? 'crit' : 'hit';
@@ -1002,6 +1037,9 @@ export class RealTimeCombat {
 
     const winner: FighterId = playerDefeated ? 'enemy' : 'player';
     const effects = this.context.effects;
+    if (effects) {
+      void effects.hitStop(FX.EXECUTION_HITSTOP);
+    }
 
     if (winner === 'player') {
       enemy.component.death();

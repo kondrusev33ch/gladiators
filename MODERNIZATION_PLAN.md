@@ -20,10 +20,10 @@
 - [x] Add sprite shadows (dynamic shadow sprites beneath fighters)
 
 #### 7.2 Camera & Screen Effects
-- [ ] Implement camera zoom/pan for team battles (auto-adjust to show all fighters)
-- [ ] Add camera shake intensity based on impact force (already started, enhance it)
-- [ ] Create slow-motion effect for critical hits and executions
-- [ ] Add chromatic aberration for heavy impacts
+- [x] Implement camera zoom/pan for team battles (auto-adjust to show all fighters)
+- [x] Add camera shake intensity based on impact force (already started, enhance it)
+- [x] Create slow-motion effect for critical hits and executions
+- [x] Add chromatic aberration for heavy impacts
 
 #### 7.3 Lighting & Atmosphere (2D)
 - [ ] Dynamic lighting system using blend modes

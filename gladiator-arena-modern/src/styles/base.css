@@ -3,12 +3,15 @@
    ============================================ */
 
 @layer base {
-  /* Google Fonts Import */
-  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Crimson+Text:ital,wght@0,400;0,600;1,400&display=swap');
 
   :root {
     --time-scale: 1;
     --shake-intensity: 1;
+    --camera-pan-x: 0px;
+    --camera-pan-y: 0px;
+    --camera-zoom: 1;
+    --chromatic-shift-x: 0px;
+    --chromatic-shift-y: 0px;
     /* Animation Durations */
     --anim-fast-base: 150ms;
     --anim-normal-base: 300ms;
@@ -160,6 +163,40 @@
 
   .arena__ground {
     z-index: 4;
+  }
+
+  .arena__shake-layer {
+    transform-origin: 50% 50%;
+    will-change: transform;
+  }
+
+  .arena__viewport {
+    transform-origin: 50% 68%;
+    transform: translate3d(var(--camera-pan-x), var(--camera-pan-y), 0) scale(var(--camera-zoom));
+    transition: transform calc(0.24s * var(--time-scale)) ease;
+    will-change: transform;
+  }
+
+  .arena__viewport::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    background:
+      radial-gradient(220px 140px at 18% 32%, rgba(255, 46, 99, 0.16), transparent 60%),
+      radial-gradient(260px 180px at 82% 60%, rgba(0, 204, 255, 0.18), transparent 62%);
+    mix-blend-mode: screen;
+    opacity: 0;
+    pointer-events: none;
+    filter: blur(1px);
+    transform: translate3d(0, 0, 0);
+    transition: opacity calc(0.18s * var(--time-scale)) ease,
+      transform calc(0.24s * var(--time-scale)) ease;
+  }
+
+  .arena--chromatic.arena__viewport::after,
+  .arena--chromatic .arena__viewport::after {
+    opacity: 0.75;
+    transform: translate3d(var(--chromatic-shift-x), var(--chromatic-shift-y), 0);
   }
 
   .arena--shake {

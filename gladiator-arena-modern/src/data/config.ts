@@ -134,7 +134,10 @@ export const FX: EffectsConfig = {
   HEAVY_HIT_THRESHOLD: 18,
   CRIT_HITSTOP: { freezeDuration: 140, slowDuration: 520, slowScale: 1.5 },
   PARRY_HITSTOP: { freezeDuration: 110, slowDuration: 380, slowScale: 1.25 },
+  EXECUTION_HITSTOP: { freezeDuration: 90, slowDuration: 820, slowScale: 1.35 },
   CAMERA_SHAKE_INTENSITY: 1.15,
+  CAMERA_SHAKE_MIN: 0.65,
+  CHROMATIC_DURATION: 340,
 };
 
 export const CONFIG = {

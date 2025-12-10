@@ -20,6 +20,10 @@ interface Particle {
 
 export type EffectType = 'blood' | 'impact' | 'sparkle';
 
+interface EffectsOptions {
+  shakeTarget?: HTMLElement;
+}
+
 export class Effects {
   private container: HTMLElement;
   private particles: Particle[] = [];
@@ -29,10 +33,13 @@ export class Effects {
   private timeScale = 1;
   private renderer?: CanvasArena;
   private readonly useCanvasParticles: boolean;
+  private shakeTarget: HTMLElement;
+  private chromaticTimeout: number | null = null;
 
-  constructor(container: HTMLElement, renderer?: CanvasArena) {
+  constructor(container: HTMLElement, renderer?: CanvasArena, options?: EffectsOptions) {
     this.container = container;
     this.renderer = renderer;
+    this.shakeTarget = options?.shakeTarget ?? container;
     this.useCanvasParticles = !!renderer;
   }
 
@@ -55,11 +62,33 @@ export class Effects {
    * Camera shake
    */
   cameraShake(intensity: number = 1): void {
-    this.container.style.setProperty('--shake-intensity', `${intensity}`);
-    this.container.classList.remove('arena--shake');
+    this.shakeTarget.style.setProperty('--shake-intensity', `${intensity}`);
+    this.shakeTarget.classList.remove('arena--shake');
     // Force reflow to restart the animation
-    void this.container.offsetWidth;
-    this.container.classList.add('arena--shake');
+    void this.shakeTarget.offsetWidth;
+    this.shakeTarget.classList.add('arena--shake');
+  }
+
+  /**
+   * Chromatic aberration burst for heavy hits
+   */
+  chromaticAberration(intensity: number = 1, duration: number = 360): void {
+    const clamped = Math.max(0.4, Math.min(2, intensity));
+    const shiftX = (1.6 + clamped * 1.8).toFixed(2);
+    const shiftY = (-1.2 - clamped * 0.8).toFixed(2);
+    this.container.style.setProperty('--chromatic-shift-x', `${shiftX}px`);
+    this.container.style.setProperty('--chromatic-shift-y', `${shiftY}px`);
+    this.container.classList.add('arena--chromatic');
+
+    if (this.chromaticTimeout) {
+      window.clearTimeout(this.chromaticTimeout);
+    }
+    this.chromaticTimeout = window.setTimeout(() => {
+      this.container.classList.remove('arena--chromatic');
+      this.container.style.removeProperty('--chromatic-shift-x');
+      this.container.style.removeProperty('--chromatic-shift-y');
+      this.chromaticTimeout = null;
+    }, duration);
   }
 
   /**
@@ -301,7 +330,14 @@ export class Effects {
       this.particles.forEach(p => p.element.remove());
       this.particles = [];
     }
-    this.container.classList.remove('arena--shake', 'arena--hitstop', 'arena--slowmo');
+    this.shakeTarget.classList.remove('arena--shake');
+    this.container.classList.remove('arena--hitstop', 'arena--slowmo', 'arena--chromatic');
+    this.container.style.removeProperty('--chromatic-shift-x');
+    this.container.style.removeProperty('--chromatic-shift-y');
+    if (this.chromaticTimeout) {
+      window.clearTimeout(this.chromaticTimeout);
+      this.chromaticTimeout = null;
+    }
     this.resetTimeScale();
     this.hitStopActive = false;
     this.frozen = false;

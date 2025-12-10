@@ -70,7 +70,10 @@ export interface EffectsConfig {
   HEAVY_HIT_THRESHOLD: number;
   CRIT_HITSTOP: HitStopConfig;
   PARRY_HITSTOP: HitStopConfig;
+  EXECUTION_HITSTOP: HitStopConfig;
   CAMERA_SHAKE_INTENSITY: number;
+  CAMERA_SHAKE_MIN: number;
+  CHROMATIC_DURATION: number;
 }
 
 export type SpacingBand = 'out-of-range' | 'sweet-spot' | 'danger-zone';

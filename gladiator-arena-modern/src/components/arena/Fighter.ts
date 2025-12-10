@@ -10,6 +10,7 @@ import { MOVEMENT, TIMING } from '../../data/config';
 import { eventBus, EVENTS } from '../../core/EventBus';
 import { clamp } from '../../utils/math';
 import type { CanvasArena, FighterVisualState } from '../../systems/rendering/CanvasArena';
+import type { CameraTarget } from '../../types/camera.types';
 
 type Direction = 'left' | 'right';
 
@@ -400,6 +401,19 @@ export class Fighter {
     return {
       x: rect.left - arenaRect.left + rect.width / 2,
       y: rect.top - arenaRect.top + rect.height / 2,
+    };
+  }
+
+  /**
+   * Expose a camera-friendly bounding box for framing.
+   */
+  getCameraTarget(): CameraTarget {
+    const { width, height } = this.getRenderDimensions();
+    return {
+      x: this.currentX,
+      y: this.getRenderY(),
+      width,
+      height,
     };
   }
 

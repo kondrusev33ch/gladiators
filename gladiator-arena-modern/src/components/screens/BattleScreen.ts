@@ -10,16 +10,21 @@ import { Effects } from '../../systems/Effects';
 import type { Fighter } from '../../types/gladiator.types';
 import type { LogType } from '../../types/game.types';
 import { CanvasArena } from '../../systems/rendering/CanvasArena';
+import { CameraDirector } from '../../systems/CameraDirector';
+import type { CameraTarget } from '../../types/camera.types';
 
 export class BattleScreen {
   private container: HTMLElement;
   private arenaElement: HTMLElement | null = null;
+  private shakeLayer: HTMLElement | null = null;
+  private stageElement: HTMLElement | null = null;
   private vsElement: HTMLElement | null = null;
   private playerFighter: FighterComponent | null = null;
   private enemyFighter: FighterComponent | null = null;
   private combatLog: CombatLog | null = null;
   private effects: Effects | null = null;
   private renderer: CanvasArena | null = null;
+  private camera: CameraDirector | null = null;
 
   constructor(containerId: string = '#screen-battle') {
     this.container = $required(containerId);
@@ -38,15 +43,21 @@ export class BattleScreen {
     this.arenaElement = this.createArena();
 
     // Initialize layered canvas renderer
-    if (this.arenaElement) {
-      this.renderer = new CanvasArena(this.arenaElement);
+    if (this.stageElement) {
+      this.renderer = new CanvasArena(this.stageElement);
       this.renderer.setRenderBodies(false); // keep DOM sprites visible
       this.renderer.start();
     }
 
     // Initialize effects system
-    if (this.arenaElement) {
-      this.effects = new Effects(this.arenaElement, this.renderer);
+    if (this.stageElement) {
+      this.effects = new Effects(this.stageElement, this.renderer ?? undefined, {
+        shakeTarget: this.arenaElement ?? undefined,
+      });
+    }
+
+    if (this.stageElement) {
+      this.camera = new CameraDirector(this.stageElement);
     }
 
     // Create combat log container with fixed height
@@ -70,16 +81,22 @@ export class BattleScreen {
   private createArena(): HTMLElement {
     const arena = createElement('div', {
       className: 'arena relative h-[280px]',
-      innerHTML: `
-        <div class="arena__ground absolute bottom-0 w-full h-[35px] border-t-2 border-black/30"
-             style="background: linear-gradient(to bottom, #c4a574 0%, #8b6914 100%);"></div>
-      `,
     });
-    const ground = arena.querySelector('.arena__ground') as HTMLElement | null;
-    if (ground) {
-      ground.style.opacity = '0';
-      ground.style.pointerEvents = 'none';
-    }
+
+    this.shakeLayer = createElement('div', {
+      className: 'arena__shake-layer absolute inset-0',
+    });
+
+    this.stageElement = createElement('div', {
+      className: 'arena__viewport absolute inset-0',
+    });
+
+    const ground = createElement('div', {
+      className: 'arena__ground absolute bottom-0 w-full h-[35px] border-t-2 border-black/30',
+    });
+    ground.style.background = 'linear-gradient(to bottom, #c4a574 0%, #8b6914 100%)';
+    ground.style.opacity = '0';
+    ground.style.pointerEvents = 'none';
 
     // Create VS badge
     this.vsElement = createElement('div', {
@@ -89,7 +106,10 @@ export class BattleScreen {
     });
     this.vsElement.style.textShadow = '0 0 30px black, 0 0 60px black';
 
-    arena.appendChild(this.vsElement);
+    this.stageElement.appendChild(ground);
+    this.stageElement.appendChild(this.vsElement);
+    this.shakeLayer.appendChild(this.stageElement);
+    arena.appendChild(this.shakeLayer);
 
     return arena;
   }
@@ -119,7 +139,7 @@ export class BattleScreen {
    * Initialize fighters on the arena
    */
   private initializeFighters(player: Fighter, enemy: Fighter): void {
-    if (!this.arenaElement) return;
+    if (!this.stageElement) return;
 
     // Clean up existing fighters
     this.playerFighter?.destroy();
@@ -127,7 +147,7 @@ export class BattleScreen {
 
     // Create player fighter (left side)
     this.playerFighter = new FighterComponent(
-      this.arenaElement,
+      this.stageElement,
       player,
       true,
       this.renderer ?? undefined
@@ -135,11 +155,13 @@ export class BattleScreen {
 
     // Create enemy fighter (right side)
     this.enemyFighter = new FighterComponent(
-      this.arenaElement,
+      this.stageElement,
       enemy,
       false,
       this.renderer ?? undefined
     );
+
+    this.camera?.start(() => this.collectCameraTargets());
 
     // Animate fighters walking in
     this.playerFighter.enter();
@@ -213,6 +235,7 @@ export class BattleScreen {
     this.enemyFighter?.destroy();
     this.playerFighter = null;
     this.enemyFighter = null;
+    this.camera?.stop();
     this.combatLog?.clear();
     this.effects?.clear();
     this.renderer?.removeFighter('player');
@@ -225,8 +248,16 @@ export class BattleScreen {
    */
   destroy(): void {
     this.reset();
+    this.camera?.stop();
     this.effects?.destroy();
     this.renderer?.destroy();
     this.container.innerHTML = '';
+  }
+
+  private collectCameraTargets(): CameraTarget[] {
+    const targets: CameraTarget[] = [];
+    if (this.playerFighter) targets.push(this.playerFighter.getCameraTarget());
+    if (this.enemyFighter) targets.push(this.enemyFighter.getCameraTarget());
+    return targets;
   }
 }
