@@ -213,6 +213,7 @@ class AnimationController {
 
 export class Sprite {
   private container: HTMLElement;
+  private wrapperElement: HTMLElement | null = null;
   private spriteElement: HTMLElement | null = null;
   private controller: AnimationController | null = null;
   private currentAnimation: SpriteAnimation = 'idle';
@@ -228,10 +229,14 @@ export class Sprite {
    */
   create(weapon: WeaponType, isFlipped: boolean = false): void {
     const weaponClass = `weapon--${weapon}`;
-    const flipClass = isFlipped ? 'sprite--flipped' : '';
+    const flipClass = isFlipped ? 'sprite-wrap--flipped' : '';
+
+    this.wrapperElement = createElement('div', {
+      className: `sprite-wrap ${flipClass}`,
+    });
 
     this.spriteElement = createElement('div', {
-      className: `sprite sprite--idle ${flipClass}`,
+      className: 'sprite sprite--idle',
       innerHTML: `
         <div class="sprite__part sprite__leg sprite__leg--left"></div>
         <div class="sprite__part sprite__leg sprite__leg--right"></div>
@@ -253,7 +258,8 @@ export class Sprite {
       `,
     });
 
-    this.container.appendChild(this.spriteElement);
+    this.wrapperElement.appendChild(this.spriteElement);
+    this.container.appendChild(this.wrapperElement);
     this.controller = new AnimationController(this.spriteElement, {
       ...this.options,
       initialDirection: 'side',
@@ -286,21 +292,19 @@ export class Sprite {
    * Flip the sprite horizontally
    */
   setFlipped(flipped: boolean): void {
-    if (!this.spriteElement) return;
-
-    if (flipped) {
-      this.spriteElement.classList.add('sprite--flipped');
-    } else {
-      this.spriteElement.classList.remove('sprite--flipped');
-    }
+    if (!this.wrapperElement) return;
+    this.wrapperElement.classList.toggle('sprite-wrap--flipped', flipped);
   }
 
   /**
    * Destroy sprite
    */
   destroy(): void {
+    if (this.wrapperElement) {
+      this.wrapperElement.remove();
+      this.wrapperElement = null;
+    }
     if (this.spriteElement) {
-      this.spriteElement.remove();
       this.spriteElement = null;
     }
   }

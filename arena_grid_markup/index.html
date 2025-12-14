@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Arena Grid Markup Tool</title>
+  </head>
+  <body class="bg-gray-900 text-gray-100 min-h-screen">
+    <div id="app" class="container mx-auto p-4">
+      <!-- Top Bar -->
+      <header class="flex flex-wrap items-center gap-4 mb-4 p-4 bg-gray-800 rounded-lg">
+        <button id="load-image-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-medium transition-colors">
+          Load Image
+        </button>
+        <input type="file" id="image-input" accept="image/*" class="hidden" />
+
+        <div class="flex items-center gap-2">
+          <label for="rows-input" class="text-sm">Rows:</label>
+          <input type="number" id="rows-input" value="20" min="5" max="50"
+            class="w-16 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-center" />
+        </div>
+
+        <div class="flex items-center gap-2">
+          <label for="cols-input" class="text-sm">Cols:</label>
+          <input type="number" id="cols-input" value="30" min="5" max="50"
+            class="w-16 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-center" />
+        </div>
+
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" id="show-grid" checked class="w-4 h-4 accent-blue-500" />
+          <span class="text-sm">Show Grid</span>
+        </label>
+
+        <span id="cell-dimensions" class="text-sm text-gray-400">No image loaded</span>
+        <span id="image-info" class="hidden text-sm text-gray-400 ml-auto"></span>
+      </header>
+
+      <!-- Main Content Area -->
+      <div class="flex flex-col lg:flex-row gap-4">
+        <!-- Canvas Area -->
+        <div class="flex-1 flex flex-col">
+          <div id="canvas-container" class="flex-1 bg-gray-800 rounded-lg p-4 min-h-[500px] flex items-center justify-center overflow-auto relative">
+            <div id="drop-zone" class="w-full h-full min-h-[468px] border-2 border-dashed border-gray-600 rounded-lg flex items-center justify-center transition-colors">
+              <p class="text-gray-400 text-center px-4">
+                Drag and drop an arena image here<br />
+                or click "Load Image" to select a file
+              </p>
+            </div>
+            <canvas id="arena-canvas" class="hidden max-w-full h-auto"></canvas>
+            <span id="hover-info" class="hidden absolute bottom-2 left-2 bg-gray-900 bg-opacity-80 px-2 py-1 rounded text-xs text-gray-300"></span>
+          </div>
+        </div>
+
+        <!-- Control Panel -->
+        <aside id="control-panel" class="w-full lg:w-72 bg-gray-800 rounded-lg p-4 space-y-4">
+          <!-- Mode Selection -->
+          <section>
+            <h3 class="text-sm font-semibold text-gray-400 mb-2">MODE</h3>
+            <div class="space-y-2">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="edit-mode" value="startingPositions" checked
+                  class="w-4 h-4 accent-blue-500" />
+                <span>Starting Positions</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="edit-mode" value="movementZone"
+                  class="w-4 h-4 accent-blue-500" />
+                <span>Movement Zone</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="edit-mode" value="cameraSettings"
+                  class="w-4 h-4 accent-purple-500" />
+                <span class="text-purple-400">Camera Settings</span>
+              </label>
+            </div>
+          </section>
+
+          <!-- Match Type Selection (for Starting Positions mode) -->
+          <section id="match-type-section">
+            <h3 class="text-sm font-semibold text-gray-400 mb-2">MATCH TYPE</h3>
+            <div class="flex flex-wrap gap-2">
+              <button data-match="1v1" class="match-btn px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors">1v1</button>
+              <button data-match="2v2" class="match-btn px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors">2v2</button>
+              <button data-match="3v3" class="match-btn px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors">3v3</button>
+              <button data-match="5v5" class="match-btn px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors">5v5</button>
+              <button data-match="7v7" class="match-btn px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm transition-colors">7v7</button>
+            </div>
+          </section>
+
+          <!-- Team Position Counters (for Starting Positions mode) -->
+          <section id="team-counters-section">
+            <h3 class="text-sm font-semibold text-gray-400 mb-2">POSITIONS</h3>
+            <div class="space-y-1 text-sm">
+              <div class="flex justify-between">
+                <span class="text-blue-400">Team A (Blue):</span>
+                <span id="team-a-count">0/1</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-red-400">Team B (Red):</span>
+                <span id="team-b-count">0/1</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Team Selection (for Starting Positions mode) -->
+          <section id="team-selection-section">
+            <h3 class="text-sm font-semibold text-gray-400 mb-2">PLACING</h3>
+            <div class="space-y-2">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="team" value="teamA" checked
+                  class="w-4 h-4 accent-blue-500" />
+                <span class="text-blue-400">Team A</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="team" value="teamB"
+                  class="w-4 h-4 accent-blue-500" />
+                <span class="text-red-400">Team B</span>
+              </label>
+            </div>
+          </section>
+
+          <!-- Paint Mode (for Movement Zone mode) -->
+          <section id="paint-mode-section" class="hidden">
+            <h3 class="text-sm font-semibold text-gray-400 mb-2">PAINT MODE</h3>
+            <div class="space-y-2">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="paint-mode" value="paint" checked
+                  class="w-4 h-4 accent-green-500" />
+                <span class="text-green-400">Paint (Add)</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="radio" name="paint-mode" value="erase"
+                  class="w-4 h-4 accent-red-500" />
+                <span class="text-red-400">Erase (Remove)</span>
+              </label>
+            </div>
+            <p class="text-xs text-gray-500 mt-2">Drag to paint multiple cells</p>
+          </section>
+
+          <!-- Movement Zone Stats (for Movement Zone mode) -->
+          <section id="zone-stats-section" class="hidden">
+            <h3 class="text-sm font-semibold text-gray-400 mb-2">ZONE STATISTICS</h3>
+            <div class="space-y-2 text-sm">
+              <div class="flex justify-between">
+                <span class="text-gray-400">Walkable cells:</span>
+                <span id="zone-cell-count" class="text-green-400">0</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-400">Coverage:</span>
+                <span id="zone-coverage" class="text-green-400">0%</span>
+              </div>
+              <div class="w-full bg-gray-700 rounded-full h-2 mt-1">
+                <div id="zone-progress-bar" class="bg-green-500 h-2 rounded-full transition-all" style="width: 0%"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Camera Settings (for Camera Settings mode) -->
+          <section id="camera-settings-section" class="hidden">
+            <h3 class="text-sm font-semibold text-gray-400 mb-2">CAMERA START POSITION</h3>
+            <div class="space-y-2 text-sm">
+              <div class="flex items-center gap-2">
+                <label for="camera-row" class="text-gray-400 w-10">Row:</label>
+                <input type="number" id="camera-row" value="10" min="0"
+                  class="flex-1 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-center text-sm" />
+              </div>
+              <div class="flex items-center gap-2">
+                <label for="camera-col" class="text-gray-400 w-10">Col:</label>
+                <input type="number" id="camera-col" value="15" min="0"
+                  class="flex-1 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-center text-sm" />
+              </div>
+              <p class="text-xs text-gray-500">Click on canvas to set position</p>
+            </div>
+          </section>
+
+          <section id="camera-zoom-section" class="hidden">
+            <h3 class="text-sm font-semibold text-gray-400 mb-2">ZOOM LIMITS (in cells)</h3>
+            <div class="space-y-3 text-sm">
+              <div>
+                <span class="text-gray-400 text-xs">Min Size (max zoom):</span>
+                <div class="flex items-center gap-2 mt-1">
+                  <input type="number" id="zoom-min-rows" value="5" min="1" max="50"
+                    class="w-16 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-center text-sm" />
+                  <span class="text-gray-500">x</span>
+                  <input type="number" id="zoom-min-cols" value="8" min="1" max="50"
+                    class="w-16 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-center text-sm" />
+                </div>
+              </div>
+              <div>
+                <span class="text-gray-400 text-xs">Max Size (min zoom):</span>
+                <div class="flex items-center gap-2 mt-1">
+                  <input type="number" id="zoom-max-rows" value="20" min="1" max="50"
+                    class="w-16 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-center text-sm" />
+                  <span class="text-gray-500">x</span>
+                  <input type="number" id="zoom-max-cols" value="30" min="1" max="50"
+                    class="w-16 px-2 py-1 bg-gray-700 border border-gray-600 rounded text-center text-sm" />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="camera-bounds-section" class="hidden">
+            <h3 class="text-sm font-semibold text-gray-400 mb-2">MOVEMENT BOUNDS (margin in cells)</h3>
+            <div class="space-y-2 text-sm">
+              <div class="grid grid-cols-3 gap-1 items-center">
+                <div></div>
+                <div class="flex flex-col items-center">
+                  <label for="bounds-top" class="text-gray-500 text-xs">Top</label>
+                  <input type="number" id="bounds-top" value="2" min="0" max="20"
+                    class="w-14 px-1 py-1 bg-gray-700 border border-gray-600 rounded text-center text-sm" />
+                </div>
+                <div></div>
+              </div>
+              <div class="grid grid-cols-3 gap-1 items-center">
+                <div class="flex flex-col items-center">
+                  <label for="bounds-left" class="text-gray-500 text-xs">Left</label>
+                  <input type="number" id="bounds-left" value="3" min="0" max="20"
+                    class="w-14 px-1 py-1 bg-gray-700 border border-gray-600 rounded text-center text-sm" />
+                </div>
+                <div class="w-12 h-8 border-2 border-dashed border-purple-500 rounded mx-auto"></div>
+                <div class="flex flex-col items-center">
+                  <label for="bounds-right" class="text-gray-500 text-xs">Right</label>
+                  <input type="number" id="bounds-right" value="3" min="0" max="20"
+                    class="w-14 px-1 py-1 bg-gray-700 border border-gray-600 rounded text-center text-sm" />
+                </div>
+              </div>
+              <div class="grid grid-cols-3 gap-1 items-center">
+                <div></div>
+                <div class="flex flex-col items-center">
+                  <label for="bounds-bottom" class="text-gray-500 text-xs">Bottom</label>
+                  <input type="number" id="bounds-bottom" value="2" min="0" max="20"
+                    class="w-14 px-1 py-1 bg-gray-700 border border-gray-600 rounded text-center text-sm" />
+                </div>
+                <div></div>
+              </div>
+              <label class="flex items-center gap-2 cursor-pointer mt-2">
+                <input type="checkbox" id="show-camera-bounds" checked class="w-4 h-4 accent-purple-500" />
+                <span class="text-gray-400 text-xs">Show bounds on canvas</span>
+              </label>
+            </div>
+          </section>
+
+          <!-- Gladiator Size (always visible - global setting) -->
+          <section id="gladiator-size-section" class="border-t border-gray-700 pt-4">
+            <h3 class="text-sm font-semibold text-gray-400 mb-2">GLADIATOR SIZE</h3>
+            <div class="space-y-3 text-sm">
+              <div>
+                <div class="flex justify-between items-center mb-1">
+                  <span class="text-gray-400 text-xs">Height (relative to cell):</span>
+                  <span id="gladiator-height-value" class="text-orange-400 font-mono">0.85</span>
+                </div>
+                <input type="range" id="gladiator-height-slider"
+                  min="0.3" max="2.0" step="0.05" value="0.85"
+                  class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-orange-500" />
+                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>0.3</span>
+                  <span>1.0</span>
+                  <span>2.0</span>
+                </div>
+              </div>
+              <!-- Visual Preview -->
+              <div class="flex items-end justify-center gap-4 mt-3 p-3 bg-gray-900 rounded-lg">
+                <div class="flex flex-col items-center">
+                  <div id="gladiator-preview" class="w-6 bg-gradient-to-b from-orange-400 to-orange-600 rounded-t transition-all" style="height: 51px;"></div>
+                  <div class="w-8 h-1 bg-gray-600 rounded"></div>
+                  <span class="text-xs text-gray-500 mt-1">Gladiator</span>
+                </div>
+                <div class="flex flex-col items-center">
+                  <div class="w-10 h-[60px] border-2 border-dashed border-gray-600 rounded flex items-end justify-center">
+                    <span class="text-xs text-gray-600 mb-1">1.0</span>
+                  </div>
+                  <span class="text-xs text-gray-500 mt-1">Cell</span>
+                </div>
+              </div>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="show-gladiator-preview" checked class="w-4 h-4 accent-orange-500" />
+                <span class="text-gray-400 text-xs">Show preview on canvas</span>
+              </label>
+            </div>
+          </section>
+
+          <!-- Action Buttons -->
+          <section class="pt-4 border-t border-gray-700 space-y-2">
+            <button id="clear-btn" class="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded font-medium transition-colors">
+              Clear Current
+            </button>
+            <button id="export-btn" class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 rounded font-medium transition-colors">
+              Export JSON
+            </button>
+            <button id="import-btn" class="w-full px-4 py-2 bg-yellow-600 hover:bg-yellow-700 rounded font-medium transition-colors">
+              Import JSON
+            </button>
+            <input type="file" id="import-input" accept=".json" class="hidden" />
+          </section>
+        </aside>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

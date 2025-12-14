@@ -11,6 +11,22 @@ import { eventBus, EVENTS } from '../../core/EventBus';
 import { clamp } from '../../utils/math';
 import type { CanvasArena, FighterVisualState } from '../../systems/rendering/CanvasArena';
 import type { CameraTarget } from '../../types/camera.types';
+import type { GridCell, GridGeometry, MovementZoneBounds, BattleMode } from '../../types/arena.types';
+import {
+  computeFloorGeometry,
+  computeGridGeometry,
+  gridToPixel,
+  pixelToGrid,
+  isValidCell,
+  getValidRows,
+  type FloorGeometry,
+} from '../../utils/arenaGeometry';
+import {
+  getStartingPositions,
+  calculateGladiatorSize,
+  getRowSegments,
+  findNearestValidColInRow,
+} from '../../data/arenaConfig';
 
 type Direction = 'left' | 'right';
 
@@ -22,16 +38,15 @@ export class Fighter {
   private arenaWidth: number;
   private renderer?: CanvasArena;
 
+  // Pixel-based position tracking
   private currentX: number;
   private entryX: number;
-  private laneIndex: number;
-  private laneOffsets: number[];
   private baseTransform = '';
   private impulseTransform = '';
   private footworkTimeout: number | null = null;
   private direction: AnimationDirection = 'side';
   private lastVisualX: number;
-  private lastLaneOffset: number;
+  private lastGridRow: number;
   private rootMotionTimeout: number | null = null;
   private readonly renderId: 'player' | 'enemy';
   private renderTint: string;
@@ -39,46 +54,70 @@ export class Fighter {
   private facing: 'left' | 'right';
   private currentPose: FighterVisualState['pose'] = 'idle';
 
+  // Grid-based position tracking
+  private gridRow: number;
+  private gridCol: number;
+  private validRows: number[];
+  private gridGeometry!: GridGeometry;
+
   private nameEl!: HTMLElement;
   private healthBarEl!: HTMLElement;
   private staminaBarEl!: HTMLElement;
   private damageEl!: HTMLElement;
   private spriteContainer!: HTMLElement;
+  private hudEl!: HTMLElement;
   private fighterEl!: HTMLElement;
   private subscriptions: Array<{ unsubscribe: () => void }> = [];
   private readonly id: 'player' | 'enemy';
+
+  private static readonly BASE_SPRITE_HEIGHT = 72;
 
   constructor(
     arena: HTMLElement,
     data: FighterData,
     isPlayer: boolean,
-    renderer?: CanvasArena
+    renderer?: CanvasArena,
+    teamIndex: number = 0,
+    battleMode: BattleMode = '1v1'
   ) {
     this.container = arena;
     this.data = data;
     this.isPlayer = isPlayer;
     this.renderer = renderer;
-    this.arenaWidth = Math.max(640, this.container.clientWidth || 0);
-    this.laneOffsets = MOVEMENT.LANES;
-    this.laneIndex = clamp(
-      Math.floor(this.laneOffsets.length / 2),
-      0,
-      this.laneOffsets.length - 1
-    );
+    this.arenaWidth = Math.max(1, this.container.clientWidth || 0);
     this.id = this.isPlayer ? 'player' : 'enemy';
     this.renderId = this.id;
     this.renderTint = this.isPlayer ? '#2563eb' : '#c2410c';
     this.renderAccent = this.isPlayer ? '#7dd3fc' : '#f59e0b';
     this.facing = this.isPlayer ? 'right' : 'left';
 
-    // X is tracked as the fighter's center position in px relative to the arena
-    this.currentX = this.isPlayer ? -160 : this.arenaWidth + 160;
-    this.entryX = this.isPlayer ? this.arenaWidth * 0.2 : this.arenaWidth * 0.8;
+    // Initialize grid geometry
+    this.validRows = getValidRows();
+    this.updateGridGeometry();
+
+    // Get starting position from arena config based on battle mode
+    const startingPositions = getStartingPositions(battleMode);
+    const teamPositions = this.isPlayer ? startingPositions.teamA : startingPositions.teamB;
+    const startCell = teamPositions[teamIndex] ?? teamPositions[0];
+
+    // Initialize grid position
+    this.gridRow = startCell.row;
+    this.gridCol = startCell.col;
+
+    // Convert grid position to pixel coordinates
+    const entryPixel = gridToPixel(this.gridRow, this.gridCol, this.gridGeometry);
+    this.entryX = entryPixel.x;
+
+    // Start off-screen and walk toward the entry point
+    const outside = Math.max(220, Math.round(this.arenaWidth * 0.18));
+    this.currentX = this.isPlayer
+      ? Math.min(this.entryX - outside, -outside)
+      : Math.max(this.entryX + outside, this.arenaWidth + outside);
     this.lastVisualX = this.currentX;
-    this.lastLaneOffset = this.laneOffsets[this.laneIndex] ?? 0;
+    this.lastGridRow = this.gridRow;
 
     // Create sprite instance
-    this.spriteContainer = createElement('div');
+    this.spriteContainer = createElement('div', { className: 'fighter__sprite-container' });
     this.sprite = new Sprite(this.spriteContainer, {
       onRootMotion: (distance: number, duration: number) => this.applyRootMotion(distance, duration),
     });
@@ -92,12 +131,13 @@ export class Fighter {
    */
   private createFighterElement(): void {
     this.fighterEl = createElement('div', {
-      className: `fighter absolute bottom-[30px] w-[100px] text-center z-10 transition-all duration-1000 ease-out ${this.isPlayer ? 'fighter--player' : 'fighter--enemy'}`,
+      className: `fighter absolute bottom-[30px] text-center z-10 transition-all duration-1000 ease-out ${this.isPlayer ? 'fighter--player' : 'fighter--enemy'}`,
       attributes: {
         'data-fighter': this.isPlayer ? 'player' : 'enemy',
       },
     });
-    this.fighterEl.style.minHeight = '160px';
+    this.fighterEl.style.minHeight = '96px';
+    this.applyConfigDrivenSizing();
 
     // Set initial off-screen position using inline styles (center-based)
     const fighterWidth = this.fighterEl.offsetWidth || 100;
@@ -105,49 +145,60 @@ export class Fighter {
 
     // Name
     this.nameEl = createElement('div', {
-      className: 'font-cinzel text-xs font-semibold text-white bg-black/70 px-2 py-0.5 rounded inline-block mb-1',
+      className: 'font-cinzel text-[10px] font-semibold text-white bg-black/70 px-1.5 py-0.5 rounded inline-block mb-1',
       textContent: this.data.name,
     });
 
     const meterStack = createElement('div', {
-      className: 'flex flex-col items-center gap-[4px] mb-2',
+      className: 'w-full flex flex-col items-center gap-[2px] mb-1',
     });
 
     // Health bar container
     const healthContainer = createElement('div', {
-      className: 'w-[110%] -ml-[5%] h-3 bg-[#222] border-2 border-[#111] rounded overflow-hidden',
+      className: 'w-full h-[7px] bg-[#222] border-[1.25px] border-[#111] rounded overflow-hidden',
       innerHTML: '<div class="fighter__health-bar w-full h-full bg-[#2d5a27] transition-all duration-300"></div>',
     });
     this.healthBarEl = healthContainer.querySelector('.fighter__health-bar') as HTMLElement;
 
     // Stamina bar container (sits just below health)
     const staminaContainer = createElement('div', {
-      className: 'w-[110%] -ml-[5%] h-2 bg-[#0f172a] border-2 border-[#0b1220] rounded overflow-hidden shadow-inner',
+      className: 'w-full h-[5px] bg-[#0f172a] border-[1.25px] border-[#0b1220] rounded overflow-hidden shadow-inner',
       innerHTML: '<div class="fighter__stamina-bar w-full h-full bg-[#2563eb] transition-all duration-300"></div>',
     });
     this.staminaBarEl = staminaContainer.querySelector('.fighter__stamina-bar') as HTMLElement;
 
     // Damage display
     this.damageEl = createElement('div', {
-      className: 'absolute top-[-40px] left-1/2 -translate-x-1/2 font-cinzel font-bold text-3xl pointer-events-none z-30 opacity-0',
+      className:
+        'fighter__damage absolute top-[-24px] left-1/2 -translate-x-1/2 font-cinzel font-bold text-lg pointer-events-none z-30 opacity-0',
       attributes: { 'data-damage': '' },
     });
 
     meterStack.appendChild(healthContainer);
     meterStack.appendChild(staminaContainer);
 
+    this.hudEl = createElement('div', {
+      className: 'fighter__hud w-full flex flex-col items-center pointer-events-none',
+    });
+    this.hudEl.appendChild(this.nameEl);
+    this.hudEl.appendChild(meterStack);
+
     // Append elements
-    this.fighterEl.appendChild(this.nameEl);
-    this.fighterEl.appendChild(meterStack);
+    this.fighterEl.appendChild(this.hudEl);
     this.fighterEl.appendChild(this.damageEl);
     this.fighterEl.appendChild(this.spriteContainer);
 
     this.container.appendChild(this.fighterEl);
 
+    // Now that we can measure the fighter width, compute spawn/entry points
+    // based on the actual elliptical movement zone at this fighter's lane.
+    this.resetSpawnAndEntryPositions();
+
     this.applyTransform();
 
     // Create sprite - player faces right, enemy faces left during entrance
     this.sprite.create(this.data.weapon, !this.isPlayer);
+    this.applyConfigDrivenSizing();
     this.updateHealth();
     this.updateStamina(this.data.stamina, this.data.maxStamina);
     this.registerEvents();
@@ -157,6 +208,32 @@ export class Fighter {
     if (!this.renderer) return;
     this.renderer.registerFighter(this.renderId, this.buildRenderState());
     this.syncRenderer();
+  }
+
+  private getViewport(): { width: number; height: number } {
+    return {
+      width: Math.max(1, this.container?.clientWidth || this.arenaWidth || 1),
+      height: Math.max(1, this.container?.clientHeight || 420),
+    };
+  }
+
+  private getFloorGeometry(): FloorGeometry {
+    return computeFloorGeometry(this.getViewport(), this.getHalfWidth());
+  }
+
+  private updateGridGeometry(): void {
+    this.gridGeometry = computeGridGeometry(this.getViewport());
+    this.applyConfigDrivenSizing();
+  }
+
+  private syncGridPosition(): void {
+    const cell = pixelToGrid(this.currentX, this.getPixelY(), this.gridGeometry);
+    this.gridCol = cell.col;
+    // Row is tracked separately via strafing
+  }
+
+  private getPixelY(): number {
+    return gridToPixel(this.gridRow, this.gridCol, this.gridGeometry).y;
   }
 
   private buildRenderState(): FighterVisualState {
@@ -178,15 +255,12 @@ export class Fighter {
   }
 
   private getRenderDimensions(): { width: number; height: number } {
-    const width = this.fighterEl?.offsetWidth || 110;
-    const height = this.fighterEl?.offsetHeight || 170;
-    return { width, height };
+    // Use config-driven sizing based on grid cell size and heightRatio
+    return calculateGladiatorSize(this.gridGeometry);
   }
 
   private getRenderY(): number {
-    const laneOffset = this.laneOffsets[this.laneIndex] ?? 0;
-    const groundY = (this.container?.clientHeight || 280) - 40;
-    return groundY + laneOffset;
+    return this.getPixelY();
   }
 
   private shadowScaleForPose(pose: FighterVisualState['pose']): number {
@@ -329,7 +403,7 @@ export class Fighter {
   showDamage(amount: number, isCrit: boolean): void {
     this.damageEl.textContent = amount.toString();
     this.damageEl.style.color = isCrit ? '#ff1744' : '#8b1a1a';
-    this.damageEl.style.fontSize = isCrit ? '2.8rem' : '2rem';
+    this.damageEl.style.fontSize = isCrit ? '1.6rem' : '1.2rem';
     this.damageEl.classList.remove('fighter__damage--animate');
     void this.damageEl.offsetHeight; // Force reflow
     this.damageEl.classList.add('fighter__damage--animate');
@@ -398,9 +472,16 @@ export class Fighter {
     const rect = this.fighterEl.getBoundingClientRect();
     const arenaRect = this.container.getBoundingClientRect();
 
+    // CameraDirector applies a CSS `scale()` transform to the arena viewport.
+    // `getBoundingClientRect()` returns screen-space coordinates after transforms,
+    // so convert back into the arena's local (pre-zoom) coordinate space.
+    const zoomVar = window.getComputedStyle(this.container).getPropertyValue('--camera-zoom');
+    const zoom = Number.parseFloat(zoomVar);
+    const scale = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+
     return {
-      x: rect.left - arenaRect.left + rect.width / 2,
-      y: rect.top - arenaRect.top + rect.height / 2,
+      x: (rect.left - arenaRect.left + rect.width / 2) / scale,
+      y: (rect.top - arenaRect.top + rect.height / 2) / scale,
     };
   }
 
@@ -457,9 +538,26 @@ export class Fighter {
   }
 
   strafe(direction: -1 | 1): boolean {
-    const nextLane = clamp(this.laneIndex + direction, 0, this.laneOffsets.length - 1);
-    if (nextLane === this.laneIndex) return false;
-    this.laneIndex = nextLane;
+    // Find next valid row in the direction
+    const currentRowIndex = this.validRows.indexOf(this.gridRow);
+    if (currentRowIndex === -1) return false;
+
+    const nextRowIndex = clamp(currentRowIndex + direction, 0, this.validRows.length - 1);
+    if (nextRowIndex === currentRowIndex) return false;
+
+    const nextRow = this.validRows[nextRowIndex];
+    if (nextRow === undefined) return false;
+
+    if (!isValidCell(nextRow, this.gridCol)) {
+      const nearestCol = findNearestValidColInRow(nextRow, this.gridCol);
+      if (nearestCol === null) return false;
+      this.gridCol = nearestCol;
+      this.currentX = gridToPixel(nextRow, this.gridCol, this.gridGeometry).x;
+    } else {
+      this.currentX = this.clampXToRowSegments(this.currentX, nextRow);
+    }
+
+    this.gridRow = nextRow;
     this.applyPosition(200);
     this.setFootworkAnimation('strafe', 320, { direction: this.direction, blend: true });
     return true;
@@ -469,13 +567,19 @@ export class Fighter {
     return this.currentX;
   }
 
-  getArenaBounds(): { left: number; right: number; width: number } {
-    const halfWidth = this.getHalfWidth();
+  getArenaBounds(): { left: number; right: number; width: number; grid: GridGeometry; bounds: MovementZoneBounds } {
+    const floor = this.getFloorGeometry();
     return {
-      left: MOVEMENT.ARENA_PADDING + halfWidth,
-      right: this.arenaWidth - MOVEMENT.ARENA_PADDING - halfWidth,
-      width: this.arenaWidth,
+      left: floor.left,
+      right: floor.right,
+      width: floor.width,
+      grid: floor.grid,
+      bounds: floor.bounds,
     };
+  }
+
+  getGridPosition(): GridCell {
+    return { row: this.gridRow, col: this.gridCol };
   }
 
   /**
@@ -545,15 +649,14 @@ export class Fighter {
     animation?: SpriteAnimation,
     animationOptions: AnimationOptions = {}
   ): number {
-    const halfWidth = this.getHalfWidth();
-    const minX = MOVEMENT.ARENA_PADDING + halfWidth;
-    const maxX = this.arenaWidth - MOVEMENT.ARENA_PADDING - halfWidth;
-    const nextX = clamp(this.currentX + deltaX, minX, maxX);
+    const desiredX = this.currentX + deltaX;
+    const nextX = this.clampXToRowSegments(desiredX, this.gridRow);
     const applied = nextX - this.currentX;
 
     if (applied === 0) return 0;
 
     this.currentX = nextX;
+    this.syncGridPosition();
     this.applyPosition(durationMs);
     this.emitFootworkDust(applied, animation);
 
@@ -570,7 +673,100 @@ export class Fighter {
   }
 
   private getHalfWidth(): number {
-    return (this.fighterEl?.offsetWidth || 100) / 2;
+    // Use config-driven sizing
+    const { width } = calculateGladiatorSize(this.gridGeometry);
+    return width / 2;
+  }
+
+  private applyConfigDrivenSizing(): void {
+    if (!this.fighterEl || !this.gridGeometry) return;
+
+    const { width, height } = calculateGladiatorSize(this.gridGeometry);
+    const safeWidth = Math.max(1, width);
+    const safeHeight = Math.max(1, height);
+
+    const spriteScale = safeHeight / Fighter.BASE_SPRITE_HEIGHT;
+    this.fighterEl.style.setProperty('--sprite-scale', `${spriteScale}`);
+    const uiScale = clamp(spriteScale, 0.55, 1.15);
+    this.fighterEl.style.setProperty('--ui-scale', `${uiScale}`);
+    this.fighterEl.style.setProperty('--combat-text-scale', `${uiScale}`);
+    if (this.hudEl) {
+      this.hudEl.style.transform = `scale(${uiScale})`;
+      this.hudEl.style.transformOrigin = 'top center';
+    }
+
+    // Keep UI readable, but size the sprite area to match config-driven dimensions.
+    this.fighterEl.style.width = `${Math.ceil(Math.max(56, safeWidth))}px`;
+    this.spriteContainer.style.width = `${Math.ceil(safeWidth)}px`;
+    this.spriteContainer.style.height = `${Math.ceil(safeHeight)}px`;
+  }
+
+  private getRowXIntervals(row: number): Array<{ minX: number; maxX: number }> {
+    const halfWidth = this.getHalfWidth();
+    const { cellWidth } = this.gridGeometry;
+
+    return getRowSegments(row)
+      .map((segment) => {
+        const minX = segment.minCol * cellWidth + halfWidth;
+        const maxX = (segment.maxCol + 1) * cellWidth - halfWidth;
+        if (!Number.isFinite(minX) || !Number.isFinite(maxX)) return null;
+        if (minX > maxX) {
+          const center = (minX + maxX) / 2;
+          return { minX: center, maxX: center };
+        }
+        return { minX, maxX };
+      })
+      .filter((value): value is { minX: number; maxX: number } => value !== null);
+  }
+
+  private findIntervalForX(
+    x: number,
+    intervals: Array<{ minX: number; maxX: number }>
+  ): { minX: number; maxX: number } | null {
+    if (!intervals.length) return null;
+    for (const interval of intervals) {
+      if (x >= interval.minX && x <= interval.maxX) return interval;
+    }
+
+    let best: { minX: number; maxX: number } | null = null;
+    let bestDist = Infinity;
+    for (const interval of intervals) {
+      const clamped = clamp(x, interval.minX, interval.maxX);
+      const dist = Math.abs(x - clamped);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = interval;
+      }
+    }
+    return best;
+  }
+
+  private clampXToRowSegments(x: number, row: number): number {
+    const intervals = this.getRowXIntervals(row);
+    const currentInterval = this.findIntervalForX(this.currentX, intervals);
+    const interval = currentInterval ?? this.findIntervalForX(x, intervals);
+    if (!interval) return x;
+    return clamp(x, interval.minX, interval.maxX);
+  }
+
+  private clampRootMotion(distance: number): number {
+    const desired = this.currentX + distance;
+    const clamped = this.clampXToRowSegments(desired, this.gridRow);
+    return clamped - this.currentX;
+  }
+
+  private resetSpawnAndEntryPositions(): void {
+    // Update grid geometry in case viewport changed
+    this.updateGridGeometry();
+
+    // Entry position is already set from grid in constructor
+    // Just update the DOM position
+    const fighterWidth = this.fighterEl.offsetWidth || 100;
+    this.fighterEl.style.transition = 'none';
+    this.fighterEl.style.left = `${this.currentX - fighterWidth / 2}px`;
+    // Force style flush so subsequent transitions animate normally.
+    void this.fighterEl.offsetHeight;
+    this.fighterEl.style.transition = '';
   }
 
   private emitFootworkDust(distance: number, animation?: SpriteAnimation): void {
@@ -588,17 +784,16 @@ export class Fighter {
   private applyPosition(durationMs: number): void {
     const fighterWidth = this.fighterEl.offsetWidth || 100;
     const left = this.currentX - fighterWidth / 2;
-    const laneOffset = this.laneOffsets[this.laneIndex] ?? 0;
     const deltaX = this.currentX - this.lastVisualX;
-    const deltaLane = laneOffset - this.lastLaneOffset;
+    const deltaRow = this.gridRow - this.lastGridRow;
 
-    this.fighterEl.style.transition = `left ${durationMs}ms ease, transform ${durationMs}ms ease`;
+    this.fighterEl.style.transition = `left ${durationMs}ms ease, transform ${durationMs}ms ease, bottom ${durationMs}ms ease`;
     this.fighterEl.style.left = `${left}px`;
 
-    const nextDirection = this.computeDirection(deltaX, deltaLane);
+    const nextDirection = this.computeDirection(deltaX, deltaRow);
     this.setDirection(nextDirection);
     this.lastVisualX = this.currentX;
-    this.lastLaneOffset = laneOffset;
+    this.lastGridRow = this.gridRow;
 
     this.applyTransform();
     this.syncRenderer();
@@ -619,8 +814,17 @@ export class Fighter {
   }
 
   private applyTransform(): void {
-    const laneOffset = this.laneOffsets[this.laneIndex] ?? 0;
-    this.baseTransform = `translateY(${laneOffset}px)`;
+    // Calculate Y offset from grid position
+    // The fighter element uses bottom positioning, so we adjust via transform
+    const viewport = this.getViewport();
+    const pixelY = this.getPixelY();
+    // Convert from top-based Y to bottom-based offset
+    // fighterEl has bottom: 30px by default, so we offset from there
+    const baseBottom = 30;
+    const targetBottom = viewport.height - pixelY;
+    const yOffset = baseBottom - targetBottom;
+
+    this.baseTransform = `translateY(${yOffset}px)`;
     const transforms = `${this.baseTransform} ${this.impulseTransform}`.trim();
     this.fighterEl.style.transform = transforms;
   }
@@ -632,7 +836,8 @@ export class Fighter {
     }
 
     this.extendTransformTransition(durationMs, 'cubic-bezier(0.22, 0.75, 0.3, 1)');
-    this.impulseTransform = `translateX(${distance}px)`;
+    const clampedDistance = this.clampRootMotion(distance);
+    this.impulseTransform = `translateX(${clampedDistance}px)`;
     this.applyTransform();
 
     this.rootMotionTimeout = window.setTimeout(() => {

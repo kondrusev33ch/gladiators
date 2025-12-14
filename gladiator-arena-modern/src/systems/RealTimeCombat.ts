@@ -63,6 +63,13 @@ const isBlockAction = (action: ActionState | null): action is BlockState =>
 const isParryAction = (action: ActionState | null): action is ParryState =>
   !!action && action.name === 'parry';
 
+/**
+ * Melee rule (grid-aware):
+ * Fighters may only start/land an attack when they are at most 2 cells apart
+ * horizontally (i.e. 1 or fewer empty cells between them).
+ */
+const MAX_EMPTY_CELLS_BETWEEN_ATTACKERS = 1;
+
 export class RealTimeCombat {
   private loop = new FixedTimestep({
     stepMs: REALTIME.STEP_MS,
@@ -215,6 +222,12 @@ export class RealTimeCombat {
   }
 
   private regenMeters(fighter: RuntimeFighter, stepMs: number): void {
+    // Initiative should keep building during footwork; otherwise fighters can get stuck in an
+    // endless "dance" loop where stamina spending postpones initiative gain indefinitely.
+    const initiativeGain = (REALTIME.INITIATIVE.REGEN_PER_SECOND / 1000) * stepMs;
+    this.updateInitiative(fighter, fighter.data.initiative + initiativeGain);
+
+    // Stamina regeneration is delayed after spending stamina (attacks, dodges, footwork, etc).
     if (this.clock < fighter.staminaRegenUnlock) return;
 
     const actionPenalty =
@@ -228,10 +241,7 @@ export class RealTimeCombat {
       staminaGain *= REALTIME.STAMINA.LOW_STAMINA_BONUS;
     }
 
-    const initiativeGain = (REALTIME.INITIATIVE.REGEN_PER_SECOND / 1000) * stepMs;
-
     this.updateStamina(fighter, fighter.data.stamina + staminaGain);
-    this.updateInitiative(fighter, fighter.data.initiative + initiativeGain);
   }
 
   private tryQueueAttack(fighter: RuntimeFighter, context: BehaviorContext): void {
@@ -249,9 +259,12 @@ export class RealTimeCombat {
       return;
     }
 
-    const inRange = context.distance <= context.attackReach + 8;
-    const closingSoon = context.distance <= REALTIME.SPACING.SWEET_MAX + 30;
-    if (!inRange && !closingSoon) return;
+    const opponent = fighter.id === 'player' ? this.runtime.enemy : this.runtime.player;
+    // Enforce grid-cell melee spacing: do not begin attacks from too far away.
+    if (!this.isAttackDistanceAllowed(fighter, opponent)) return;
+    // Also respect the current (cell-capped) pixel reach so we don't start attacks that can never connect.
+    const reach = this.getAttackReach(ATTACK, fighter);
+    if (this.getBaseDistance(fighter, opponent) > reach + 8) return;
 
     this.updateInitiative(fighter, fighter.data.initiative - ATTACK.initiativeCost);
     this.updateStamina(fighter, fighter.data.stamina - ATTACK.staminaCost);
@@ -428,11 +441,12 @@ export class RealTimeCombat {
     if (!isAttackAction(action) || action.hasHit) return;
 
     const distance = this.getDistance(attacker, defender);
-    const reach = this.getAttackReach(action.config);
+    const reach = this.getAttackReach(action.config, attacker);
 
     if (defender.invulnerableUntil > this.clock) return;
 
     if (distance > reach) return;
+    if (!this.isAttackDistanceAllowed(attacker, defender)) return;
 
     const defense = defender.action;
     if (isParryAction(defense) && defense.phase === 'active') {
@@ -469,8 +483,54 @@ export class RealTimeCombat {
     return Math.abs(aPos - bPos);
   }
 
-  private getAttackReach(timing: AttackTiming): number {
-    return timing.range + REALTIME.HURTBOX.radius;
+  private getCellWidth(reference: RuntimeFighter): number {
+    const grid = reference.component.getArenaBounds().grid;
+    return Math.max(1, grid.cellWidth || 1);
+  }
+
+  private getCombinedBodyRadius(): number {
+    // Approximate the horizontal "occupied" size using the combat hurtbox.
+    return REALTIME.HURTBOX.radius * 2;
+  }
+
+  private getMaxMeleeCenterDistance(reference: RuntimeFighter): number {
+    return (
+      this.getCombinedBodyRadius() +
+      this.getCellWidth(reference) * MAX_EMPTY_CELLS_BETWEEN_ATTACKERS
+    );
+  }
+
+  private getEmptyCellsBetweenFighters(a: RuntimeFighter, b: RuntimeFighter): number {
+    const cellWidth = this.getCellWidth(a);
+    const gapPx = this.getBaseDistance(a, b) - this.getCombinedBodyRadius();
+    return Math.max(0, gapPx) / cellWidth;
+  }
+
+  private isAttackDistanceAllowed(a: RuntimeFighter, b: RuntimeFighter): boolean {
+    // Allow a small tolerance to avoid jitter when fighters are near boundaries.
+    return this.getEmptyCellsBetweenFighters(a, b) <= MAX_EMPTY_CELLS_BETWEEN_ATTACKERS + 0.05;
+  }
+
+  private getAttackReach(timing: AttackTiming, reference: RuntimeFighter): number {
+    // Keep config feel, but clamp by the grid-cell melee rule.
+    const configured = timing.range + REALTIME.HURTBOX.radius;
+    const cellCapped = this.getMaxMeleeCenterDistance(reference);
+    return Math.min(configured, cellCapped);
+  }
+
+  private chooseStrafeDirectionTowardOpponent(
+    fighter: RuntimeFighter,
+    opponent: RuntimeFighter,
+    context: BehaviorContext
+  ): -1 | 1 {
+    const fighterRow = fighter.component.getGridPosition().row;
+    const opponentRow = opponent.component.getGridPosition().row;
+
+    if (fighterRow < opponentRow) return 1;
+    if (fighterRow > opponentRow) return -1;
+
+    // If aligned, use edge-aware strafing to avoid getting pinned.
+    return context.edges.leftSpace < context.edges.rightSpace ? 1 : -1;
   }
 
   private handleNavigation(
@@ -482,45 +542,73 @@ export class RealTimeCombat {
     if (!this.context || fighter.action || fighter.data.stamina <= 2) return;
 
     const staminaRatio = fighter.data.stamina / Math.max(1, fighter.data.maxStamina);
+    const dangerDistance = REALTIME.SPACING.DANGER;
+    const leashMaxDistance = this.getMaxMeleeCenterDistance(fighter) + this.getCellWidth(fighter) * 3;
+    const needsToClose = !this.isAttackDistanceAllowed(fighter, opponent);
+    const readyToAttack =
+      fighter.data.initiative >= fighter.data.initiativeThreshold &&
+      fighter.data.stamina >= REALTIME.ATTACK.staminaCost &&
+      !needsToClose;
+    const restSafeDistance = this.getMaxMeleeCenterDistance(fighter) + this.getCellWidth(fighter) * 0.75;
     const shouldRest =
       staminaRatio < REALTIME.STAMINA.LOW_STAMINA_THRESHOLD * 0.7 &&
-      context.distance > REALTIME.SPACING.DANGER + 6 &&
-      context.edges.nearest > 18;
-    if (shouldRest) return;
+      context.distance > Math.max(dangerDistance + 6, restSafeDistance) &&
+      context.edges.nearest > 18 &&
+      context.distance <= leashMaxDistance;
+    if (shouldRest && !needsToClose) return;
 
     const brain = this.brains?.[fighter.id];
-    const decision: FootworkAction = brain?.chooseFootwork(context) ?? 'hold';
+    let decision: FootworkAction = brain?.chooseFootwork(context) ?? 'hold';
+    // Keep fights readable: prevent fighters from drifting too far apart.
+    if (context.distance > leashMaxDistance) decision = 'advance';
+    if (context.spacing === 'out-of-range' && decision === 'retreat') decision = 'advance';
+    // Grid-cell combat rule: if you can't legally hit yet, you must close distance.
+    if (needsToClose) decision = 'advance';
+    // If we are in legal melee range and have resources, stop footworking and let attacks happen.
+    if (readyToAttack) decision = 'hold';
+    // Avoid lane-divergent circling while trying to engage.
+    if (decision === 'circle' && (needsToClose || readyToAttack)) decision = 'hold';
 
     const dtSeconds = elapsedMs / 1000;
+    const cellWidth = this.getCellWidth(fighter);
+    const forwardSpeed = MOVEMENT.FOOTWORK.SPEED * cellWidth;
+    const backpedalSpeed = MOVEMENT.FOOTWORK.BACKPEDAL_SPEED * cellWidth;
     const forwardStep = Math.min(
       REALTIME.NAVIGATION.MAX_STEP,
-      MOVEMENT.FOOTWORK.SPEED * dtSeconds
+      forwardSpeed * dtSeconds
     );
     const retreatStep = Math.min(
       REALTIME.NAVIGATION.MAX_STEP,
-      MOVEMENT.FOOTWORK.BACKPEDAL_SPEED * dtSeconds
+      backpedalSpeed * dtSeconds
     );
     const opponentPos = opponent.component.getCenterX();
     const minimumGap = REALTIME.HURTBOX.radius * 1.6;
     let moved = 0;
+    let movementSpeedUsed = 0;
 
     const nearWall = context.edges.nearest < 20;
-    const forcedRetreat = nearWall && decision === 'advance';
+    const fighterPos = fighter.component.getCenterX();
+    const nearestEdge: 'left' | 'right' =
+      context.edges.leftSpace < context.edges.rightSpace ? 'left' : 'right';
+    const opponentIsTowardNearestEdge =
+      nearestEdge === 'left' ? opponentPos < fighterPos : opponentPos > fighterPos;
+    const forcedRetreat = nearWall && decision === 'advance' && opponentIsTowardNearestEdge;
 
     switch (forcedRetreat ? 'retreat' : decision) {
       case 'advance': {
         const distance = this.getBaseDistance(fighter, opponent);
         const cappedStep = Math.max(0, Math.min(forwardStep, distance - minimumGap));
         moved = fighter.component.advanceToward(opponentPos, cappedStep);
+        movementSpeedUsed = forwardSpeed;
         break;
       }
       case 'retreat': {
         moved = fighter.component.retreatFrom(opponentPos, retreatStep);
+        movementSpeedUsed = backpedalSpeed;
         break;
       }
       case 'circle': {
-        const laneDir: -1 | 1 =
-          context.edges.leftSpace < context.edges.rightSpace ? 1 : -1;
+        const laneDir = this.chooseStrafeDirectionTowardOpponent(fighter, opponent, context);
         const strafed = fighter.component.strafe(laneDir);
         if (strafed) {
           this.spendStamina(fighter, MOVEMENT.FOOTWORK.COST_PER_SECOND * dtSeconds * 0.6);
@@ -530,8 +618,7 @@ export class RealTimeCombat {
       }
       case 'hold':
         if (nearWall) {
-          const laneDir: -1 | 1 =
-            context.edges.leftSpace < context.edges.rightSpace ? 1 : -1;
+          const laneDir = this.chooseStrafeDirectionTowardOpponent(fighter, opponent, context);
           const strafed = fighter.component.strafe(laneDir);
           if (strafed) {
             this.spendStamina(fighter, MOVEMENT.FOOTWORK.COST_PER_SECOND * dtSeconds * 0.4);
@@ -541,7 +628,7 @@ export class RealTimeCombat {
     }
 
     if (moved !== 0) {
-      const travelSeconds = Math.max(dtSeconds, Math.abs(moved) / Math.max(1, MOVEMENT.FOOTWORK.SPEED));
+      const travelSeconds = Math.max(dtSeconds, Math.abs(moved) / Math.max(1, movementSpeedUsed || forwardSpeed));
       this.spendStamina(fighter, MOVEMENT.FOOTWORK.COST_PER_SECOND * travelSeconds);
     }
   }
@@ -559,10 +646,19 @@ export class RealTimeCombat {
   }
 
   private getSpacingBand(distance: number): SpacingBand {
-    if (distance < REALTIME.SPACING.DANGER) return 'danger-zone';
-    if (distance >= REALTIME.SPACING.SWEET_MIN && distance <= REALTIME.SPACING.SWEET_MAX) {
-      return 'sweet-spot';
+    if (!this.runtime) {
+      if (distance < REALTIME.SPACING.DANGER) return 'danger-zone';
+      if (distance >= REALTIME.SPACING.SWEET_MIN && distance <= REALTIME.SPACING.SWEET_MAX) {
+        return 'sweet-spot';
+      }
+      return 'out-of-range';
     }
+
+    const danger = Math.max(REALTIME.SPACING.DANGER, this.getCombinedBodyRadius() * 0.85);
+    const sweetMax = this.getMaxMeleeCenterDistance(this.runtime.player);
+
+    if (distance < danger) return 'danger-zone';
+    if (distance <= sweetMax) return 'sweet-spot';
     return 'out-of-range';
   }
 
@@ -627,7 +723,7 @@ export class RealTimeCombat {
         rightSpace: bounds.right - centerX,
         nearest: Math.min(centerX - bounds.left, bounds.right - centerX),
       },
-      attackReach: this.getAttackReach(REALTIME.ATTACK),
+      attackReach: this.getAttackReach(REALTIME.ATTACK, fighter),
     };
   }
 
@@ -658,7 +754,7 @@ export class RealTimeCombat {
     const brain = this.brains[defender.id];
     const action = attacker.action;
     const distance = this.getDistance(attacker, defender);
-    const reach = this.getAttackReach(action.config) + 12;
+    const reach = this.getAttackReach(action.config, attacker) + 12;
 
     const threatActive = action.phase === 'active';
     const threatImminent =
@@ -746,7 +842,7 @@ export class RealTimeCombat {
         : 'right';
 
     const knockback = Math.min(
-      MOVEMENT.FOOTWORK.BACKPEDAL_SPEED * 0.45,
+      MOVEMENT.FOOTWORK.BACKPEDAL_SPEED * this.getCellWidth(fighter) * 0.45,
       REALTIME.NAVIGATION.MAX_STEP * 2 + force * 0.35
     );
     fighter.component.stagger(direction, knockback);

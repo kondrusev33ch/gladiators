@@ -76,7 +76,7 @@ export class BehaviorAI {
     const exhausted = staminaRatio < 0.32;
 
     if (exhausted) {
-      if (context.distance < REALTIME.SPACING.DANGER + 10) {
+      if (spacing === 'danger-zone') {
         this.nextFootworkReview = now + 140;
         return 'retreat';
       }
@@ -186,7 +186,7 @@ export class BehaviorAI {
 
     this.pendingDefenseAt = null;
 
-    const pressure = threat.distance < REALTIME.SPACING.DANGER ? 0.08 : 0;
+    const pressure = threat.distance < context.attackReach * 0.7 ? 0.08 : 0;
     const blunderChance = this.profile.mistakeRate + pressure * 0.6;
     if (Math.random() < blunderChance) return null;
 
@@ -202,7 +202,7 @@ export class BehaviorAI {
     if (context.fighter.stamina <= 6) return null;
 
     const dangerWeight =
-      threat.distance < REALTIME.SPACING.DANGER ? 1 : threat.imminent ? 0.75 : 0.4;
+      threat.distance < context.attackReach * 0.65 ? 1 : threat.imminent ? 0.75 : 0.4;
     const edgeWeight = context.edges.nearest < 32 ? 1.1 : 0.85;
     const chance = this.profile.evadeBias * dangerWeight * edgeWeight;
 

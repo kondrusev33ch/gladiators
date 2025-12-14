@@ -134,6 +134,12 @@
 }
 
 /* Damage Float Animation */
+.fighter__damage {
+  transform: translateX(-50%) scale(var(--combat-text-scale, 1));
+  transform-origin: center;
+  will-change: transform, top, opacity;
+}
+
 .fighter__damage--animate {
   animation: damageFloat calc(1.2s * var(--time-scale)) ease-out forwards;
 }
@@ -333,16 +339,16 @@
 @keyframes damageFloat {
   0% {
     opacity: 1;
-    top: -40px;
-    transform: translateX(-50%) scale(1);
+    top: calc(-40px * var(--combat-text-scale, 1));
+    transform: translateX(-50%) scale(calc(var(--combat-text-scale, 1) * 1));
   }
   20% {
-    transform: translateX(-50%) scale(1.3);
+    transform: translateX(-50%) scale(calc(var(--combat-text-scale, 1) * 1.3));
   }
   100% {
     opacity: 0;
-    top: -120px;
-    transform: translateX(-50%) scale(1);
+    top: calc(-120px * var(--combat-text-scale, 1));
+    transform: translateX(-50%) scale(calc(var(--combat-text-scale, 1) * 1));
   }
 }
 

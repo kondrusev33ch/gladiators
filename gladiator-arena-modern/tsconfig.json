@@ -25,7 +25,8 @@
       "@systems/*": ["./src/systems/*"],
       "@types/*": ["./src/types/*"],
       "@utils/*": ["./src/utils/*"],
-      "@data/*": ["./src/data/*"]
+      "@data/*": ["./src/data/*"],
+      "@arena/*": ["./arena/*"]
     },
 
     /* Linting */
@@ -39,5 +40,5 @@
     "noPropertyAccessFromIndexSignature": true,
     "allowUnreachableCode": false
   },
-  "include": ["src"]
+  "include": ["src", "arena"]
 }

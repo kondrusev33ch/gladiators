@@ -1,10 +1,23 @@
 /**
  * CanvasArena - Multi-layer canvas renderer for the gladiator arena.
  * Layers: background, floor, fighters, effects, UI overlay.
+ * Supports grid-based movement zone visualization and debug overlays.
  */
 
 import { SpriteBatch } from './SpriteBatch';
 import { ParticleSystem, type ParticleKind } from './ParticleSystem';
+import {
+  computeGridGeometry,
+  getMovementZoneBoundary,
+  gridToPixel,
+} from '../../utils/arenaGeometry';
+import {
+  getArenaImageFile,
+  getMovementZoneSet,
+  getStartingPositions,
+  isValidCell,
+} from '../../data/arenaConfig';
+import type { GridGeometry, BattleMode } from '../../types/arena.types';
 
 type LayerName = 'background' | 'floor' | 'fighters' | 'effects' | 'ui';
 
@@ -33,10 +46,19 @@ interface Viewport {
   height: number;
 }
 
+interface DebugOptions {
+  showGrid: boolean;
+  showMovementZone: boolean;
+  showStartingPositions: boolean;
+  showFighterCells: boolean;
+}
+
 export class CanvasArena {
   private container: HTMLElement;
   private wrapper: HTMLElement;
   private layers: Record<LayerName, Layer>;
+  private backgroundImage: HTMLImageElement | null = null;
+  private backgroundLoaded = false;
   private running = false;
   private rafId: number | null = null;
   private lastTimestamp = 0;
@@ -48,6 +70,14 @@ export class CanvasArena {
   private readonly viewPadding = 80;
   private resizeObserver: ResizeObserver | null = null;
   private renderBodies = false;
+  private gridGeometry: GridGeometry | null = null;
+  private debugOptions: DebugOptions = {
+    showGrid: false,
+    showMovementZone: false,
+    showStartingPositions: false,
+    showFighterCells: false,
+  };
+  private currentBattleMode: BattleMode = '1v1';
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -70,6 +100,7 @@ export class CanvasArena {
     this.container.appendChild(this.wrapper);
     this.resize();
     this.attachResizeObserver();
+    this.loadBackgroundImage();
   }
 
   start(): void {
@@ -96,16 +127,22 @@ export class CanvasArena {
   }
 
   resize(): void {
-    const rect = this.container.getBoundingClientRect();
-    this.viewport = { width: rect.width, height: rect.height };
+    // Use layout size (not transformed size) so geometry stays anchored
+    // to the arena background rather than the camera zoom.
+    const width = this.container.clientWidth || this.container.getBoundingClientRect().width;
+    const height = this.container.clientHeight || this.container.getBoundingClientRect().height;
+    this.viewport = { width, height };
     this.dpr = window.devicePixelRatio || 1;
+
+    // Update grid geometry for the new viewport
+    this.gridGeometry = computeGridGeometry(this.viewport);
 
     (Object.values(this.layers) as Layer[]).forEach(layer => {
       const { canvas, ctx } = layer;
-      canvas.width = Math.max(1, Math.floor(rect.width * this.dpr));
-      canvas.height = Math.max(1, Math.floor(rect.height * this.dpr));
-      canvas.style.width = `${rect.width}px`;
-      canvas.style.height = `${rect.height}px`;
+      canvas.width = Math.max(1, Math.floor(width * this.dpr));
+      canvas.height = Math.max(1, Math.floor(height * this.dpr));
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
       ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
       ctx.imageSmoothingEnabled = true;
     });
@@ -143,6 +180,20 @@ export class CanvasArena {
     this.renderBodies = enabled;
   }
 
+  setDebugOptions(options: Partial<DebugOptions>): void {
+    this.debugOptions = { ...this.debugOptions, ...options };
+    this.staticDirty = true;
+  }
+
+  setBattleMode(mode: BattleMode): void {
+    this.currentBattleMode = mode;
+    this.staticDirty = true;
+  }
+
+  getGridGeometry(): GridGeometry | null {
+    return this.gridGeometry;
+  }
+
   private render(timestamp: number): void {
     if (!this.running) return;
 
@@ -155,12 +206,60 @@ export class CanvasArena {
     this.particles.update(dt);
     this.particles.render(this.layers.effects.batch!);
 
+    // Draw fighter grid cells in debug mode (dynamic layer)
+    if (this.debugOptions.showFighterCells) {
+      this.renderFighterCells();
+    }
+
     // Flush in order
     this.layers.fighters.batch?.flush();
     this.layers.effects.batch?.flush();
     this.layers.ui.batch?.flush();
 
     this.rafId = requestAnimationFrame(ts => this.render(ts));
+  }
+
+  private renderFighterCells(): void {
+    if (!this.gridGeometry) return;
+
+    const ctx = this.layers.ui.ctx;
+    const { cellWidth, cellHeight } = this.gridGeometry;
+
+    ctx.save();
+
+    for (const fighter of this.fighters.values()) {
+      // Get the fighter's current grid cell
+      const col = Math.floor(fighter.x / cellWidth);
+      const row = Math.floor(fighter.y / cellHeight);
+
+      // Check if in valid movement zone
+      const inZone = isValidCell(row, col);
+
+      // Draw cell highlight
+      const x = col * cellWidth;
+      const y = row * cellHeight;
+
+      ctx.fillStyle = inZone
+        ? 'rgba(50, 205, 50, 0.25)'
+        : 'rgba(255, 50, 50, 0.35)';
+      ctx.fillRect(x, y, cellWidth, cellHeight);
+
+      // Draw cell border
+      ctx.strokeStyle = inZone
+        ? 'rgba(50, 205, 50, 0.8)'
+        : 'rgba(255, 50, 50, 0.8)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, cellWidth, cellHeight);
+
+      // Draw cell coordinates
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(`${row},${col}`, x + cellWidth / 2, y + cellHeight - 2);
+    }
+
+    ctx.restore();
   }
 
   private drawFighters(): void {
@@ -177,7 +276,7 @@ export class CanvasArena {
       batch.add({
         type: 'ellipse',
         x: fighter.x,
-        y: fighter.y + fighter.height * 0.45,
+        y: fighter.y + fighter.height * 0.06,
         rx: shadowWidth / 2,
         ry: shadowHeight / 2,
         fill: 'rgba(0,0,0,0.35)',
@@ -236,27 +335,172 @@ export class CanvasArena {
     if (!this.staticDirty) return;
     this.staticDirty = false;
 
-    this.fillLayer(this.layers.background.ctx, [
-      { stop: 0, color: '#1f0f0f' },
-      { stop: 0.6, color: '#2f1c14' },
-      { stop: 1, color: '#130b0b' },
-    ]);
+    this.renderBackground();
 
     const floorCtx = this.layers.floor.ctx;
     this.clearCtx(floorCtx, this.layers.floor.canvas);
     const { width, height } = this.viewport;
-    const sandHeight = Math.max(45, height * 0.28);
-    const gradient = floorCtx.createLinearGradient(0, height - sandHeight, 0, height);
-    gradient.addColorStop(0, '#c9a227');
-    gradient.addColorStop(1, '#8b6914');
-    floorCtx.fillStyle = gradient;
-    floorCtx.fillRect(0, height - sandHeight, width, sandHeight);
+    const overlayHeight = Math.max(80, height * 0.22);
+    const overlay = floorCtx.createLinearGradient(0, height - overlayHeight, 0, height);
+    overlay.addColorStop(0, 'rgba(0,0,0,0)');
+    overlay.addColorStop(1, 'rgba(0,0,0,0.35)');
+    floorCtx.fillStyle = overlay;
+    floorCtx.fillRect(0, height - overlayHeight, width, overlayHeight);
 
-    floorCtx.fillStyle = 'rgba(255,255,255,0.05)';
-    for (let i = 0; i < 6; i++) {
-      const stripeY = height - sandHeight + i * (sandHeight / 6);
-      floorCtx.fillRect(0, stripeY, width, 2);
+    this.renderArenaBoundary(floorCtx);
+
+    // Debug overlays
+    if (this.hasDebugEnabled()) {
+      this.renderDebugOverlay(floorCtx);
     }
+  }
+
+  private hasDebugEnabled(): boolean {
+    return (
+      this.debugOptions.showGrid ||
+      this.debugOptions.showMovementZone ||
+      this.debugOptions.showStartingPositions
+    );
+  }
+
+  private renderDebugOverlay(ctx: CanvasRenderingContext2D): void {
+    if (!this.gridGeometry) return;
+
+    const { cellWidth, cellHeight, grid } = this.gridGeometry;
+    const { width, height } = this.viewport;
+
+    ctx.save();
+
+    // Draw grid lines
+    if (this.debugOptions.showGrid) {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+      ctx.lineWidth = 0.5;
+
+      // Vertical lines
+      for (let col = 0; col <= grid.columns; col++) {
+        const x = col * cellWidth;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+
+      // Horizontal lines
+      for (let row = 0; row <= grid.rows; row++) {
+        const y = row * cellHeight;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+    }
+
+    // Highlight valid movement zone cells
+    if (this.debugOptions.showMovementZone) {
+      const zoneSet = getMovementZoneSet();
+      ctx.fillStyle = 'rgba(50, 205, 50, 0.12)';
+
+      for (const cellKey of zoneSet) {
+        const [rowStr, colStr] = cellKey.split(',');
+        const row = parseInt(rowStr, 10);
+        const col = parseInt(colStr, 10);
+
+        const x = col * cellWidth;
+        const y = row * cellHeight;
+        ctx.fillRect(x + 1, y + 1, cellWidth - 2, cellHeight - 2);
+      }
+
+      // Draw cell coordinates for some cells (every 5th cell)
+      if (this.debugOptions.showGrid) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.font = `${Math.min(10, cellWidth / 4)}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        for (const cellKey of zoneSet) {
+          const [rowStr, colStr] = cellKey.split(',');
+          const row = parseInt(rowStr, 10);
+          const col = parseInt(colStr, 10);
+
+          if (row % 5 === 0 && col % 5 === 0) {
+            const pixel = gridToPixel(row, col, this.gridGeometry);
+            ctx.fillText(`${row},${col}`, pixel.x, pixel.y);
+          }
+        }
+      }
+    }
+
+    // Draw starting position markers
+    if (this.debugOptions.showStartingPositions) {
+      const positions = getStartingPositions(this.currentBattleMode);
+
+      // Team A positions (blue)
+      ctx.fillStyle = 'rgba(59, 130, 246, 0.7)';
+      ctx.strokeStyle = 'rgba(59, 130, 246, 1)';
+      ctx.lineWidth = 2;
+      for (const cell of positions.teamA) {
+        const pixel = gridToPixel(cell.row, cell.col, this.gridGeometry);
+        ctx.beginPath();
+        ctx.arc(pixel.x, pixel.y, Math.min(cellWidth, cellHeight) / 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+
+      // Team B positions (red)
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.7)';
+      ctx.strokeStyle = 'rgba(239, 68, 68, 1)';
+      for (const cell of positions.teamB) {
+        const pixel = gridToPixel(cell.row, cell.col, this.gridGeometry);
+        ctx.beginPath();
+        ctx.arc(pixel.x, pixel.y, Math.min(cellWidth, cellHeight) / 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+
+      // Draw battle mode label
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(`Mode: ${this.currentBattleMode}`, 10, 10);
+    }
+
+    ctx.restore();
+  }
+
+  private renderArenaBoundary(ctx: CanvasRenderingContext2D): void {
+    if (!this.gridGeometry) return;
+
+    // Get the movement zone boundary polygon
+    const boundary = getMovementZoneBoundary(this.gridGeometry);
+    if (boundary.length < 3) return;
+
+    ctx.save();
+
+    // Draw filled movement zone with subtle highlight
+    ctx.fillStyle = 'rgba(220, 180, 120, 0.03)';
+    ctx.beginPath();
+    ctx.moveTo(boundary[0].x, boundary[0].y);
+    for (let i = 1; i < boundary.length; i++) {
+      ctx.lineTo(boundary[i].x, boundary[i].y);
+    }
+    ctx.closePath();
+    ctx.fill();
+
+    // Draw boundary stroke
+    ctx.strokeStyle = 'rgba(220, 38, 38, 0.7)';
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(boundary[0].x, boundary[0].y);
+    for (let i = 1; i < boundary.length; i++) {
+      ctx.lineTo(boundary[i].x, boundary[i].y);
+    }
+    ctx.closePath();
+    ctx.stroke();
+
+    ctx.restore();
   }
 
   private clearDynamicLayers(): void {
@@ -280,6 +524,59 @@ export class CanvasArena {
     stops.forEach(stop => gradient.addColorStop(stop.stop, stop.color));
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
+  }
+
+  private renderBackground(): void {
+    const ctx = this.layers.background.ctx;
+    const canvas = this.layers.background.canvas;
+    this.clearCtx(ctx, canvas);
+
+    if (this.backgroundImage && this.backgroundLoaded) {
+      const { width, height } = this.viewport;
+      const img = this.backgroundImage;
+
+      // Grid-aligned scaling: image maps 1:1 to the grid coordinate system
+      // The image covers the entire viewport, with grid cells calculated from viewport dimensions
+      // Use "cover" mode to ensure the entire viewport is filled while maintaining aspect ratio
+      const imgAspect = img.width / img.height;
+      const viewAspect = width / height;
+
+      let drawWidth: number;
+      let drawHeight: number;
+      let offsetX: number;
+      let offsetY: number;
+
+      if (viewAspect > imgAspect) {
+        // Viewport is wider than image - scale by width
+        drawWidth = width;
+        drawHeight = width / imgAspect;
+        offsetX = 0;
+        offsetY = (height - drawHeight) / 2;
+      } else {
+        // Viewport is taller than image - scale by height
+        drawHeight = height;
+        drawWidth = height * imgAspect;
+        offsetX = (width - drawWidth) / 2;
+        offsetY = 0;
+      }
+
+      ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+
+      // Subtle vignette overlay
+      const vignette = ctx.createLinearGradient(0, 0, 0, height);
+      vignette.addColorStop(0, 'rgba(0,0,0,0.15)');
+      vignette.addColorStop(0.5, 'rgba(0,0,0,0.05)');
+      vignette.addColorStop(1, 'rgba(0,0,0,0.25)');
+      ctx.fillStyle = vignette;
+      ctx.fillRect(0, 0, width, height);
+      return;
+    }
+
+    this.fillLayer(ctx, [
+      { stop: 0, color: '#1f0f0f' },
+      { stop: 0.6, color: '#2f1c14' },
+      { stop: 1, color: '#130b0b' },
+    ]);
   }
 
   private createLayer(zIndex: number, batched: boolean = false): Layer {
@@ -306,6 +603,21 @@ export class CanvasArena {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.restore();
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+  }
+
+  private loadBackgroundImage(): void {
+    const img = new window.Image();
+    // Load from arena config - image path from config file
+    const imageFile = getArenaImageFile();
+    img.src = `/images/arena/${imageFile}`;
+    img.onload = () => {
+      this.backgroundImage = img;
+      this.backgroundLoaded = true;
+      this.staticDirty = true;
+    };
+    img.onerror = () => {
+      console.warn(`Failed to load arena background image: ${imageFile}`);
+    };
   }
 
   private poseIntensity(pose: FighterVisualState['pose']): number {

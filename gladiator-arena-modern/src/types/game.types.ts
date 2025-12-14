@@ -36,8 +36,8 @@ export interface MovementConfig {
   ARENA_PADDING: number;
   LANES: number[];
   FOOTWORK: {
-    SPEED: number; // Forward shuffle speed (px per second)
-    BACKPEDAL_SPEED: number; // Retreat speed (px per second)
+    SPEED: number; // Forward shuffle speed (cells per second)
+    BACKPEDAL_SPEED: number; // Retreat speed (cells per second)
     STRAFE_DISTANCE: number; // Lateral lane change distance (px)
     COST_PER_SECOND: number; // Stamina drain while moving (per second of movement)
   };

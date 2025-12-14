@@ -155,10 +155,7 @@
   /* Arena styling & lighting */
   .arena {
     @apply relative overflow-hidden rounded-md border-[4px] border-ink shadow-arena;
-    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.1) 45%, rgba(0, 0, 0, 0.5) 100%),
-      url('https://upload.wikimedia.org/wikipedia/commons/thumb/6/69/Colosseum_in_Rome%2C_Italy_-_April_2007.jpg/1280px-Colosseum_in_Rome%2C_Italy_-_April_2007.jpg');
-    background-size: cover;
-    background-position: center 32%;
+    background: radial-gradient(140% 90% at 50% 50%, rgba(0, 0, 0, 0.28), rgba(0, 0, 0, 0.65));
   }
 
   .arena__ground {

@@ -2,16 +2,32 @@
    GLADIATOR SPRITE (CSS Doll)
    ============================================ */
 
-.sprite {
-  position: relative;
-  width: 80px;
-  height: 110px;
-  margin: 0 auto;
-  --look-tilt: 0deg;
+.sprite-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  transform-origin: 50% 100%;
+  transform: scale(var(--sprite-scale, 1));
 }
 
-.sprite--flipped {
-  transform: scaleX(-1);
+.sprite-wrap--flipped {
+  transform: scale(var(--sprite-scale, 1)) scaleX(-1);
+}
+
+.fighter__sprite-container {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  margin: 0 auto;
+  overflow: visible;
+}
+
+.sprite {
+  position: relative;
+  width: 48px;
+  height: 72px;
+  margin: 0 auto;
+  --look-tilt: 0deg;
 }
 
 .sprite__part {

@@ -1,5 +1,6 @@
 /**
  * BattleScreen - Battle interface with arena and combat log
+ * Integrates grid-based arena system with camera and rendering.
  */
 
 import { Fighter as FighterComponent } from '../arena/Fighter';
@@ -12,6 +13,12 @@ import type { LogType } from '../../types/game.types';
 import { CanvasArena } from '../../systems/rendering/CanvasArena';
 import { CameraDirector } from '../../systems/CameraDirector';
 import type { CameraTarget } from '../../types/camera.types';
+import type { BattleMode } from '../../types/arena.types';
+import {
+  computeGridGeometry,
+  getCameraConfig,
+  getMovementZoneBounds,
+} from '../../data/arenaConfig';
 
 export class BattleScreen {
   private container: HTMLElement;
@@ -25,6 +32,8 @@ export class BattleScreen {
   private effects: Effects | null = null;
   private renderer: CanvasArena | null = null;
   private camera: CameraDirector | null = null;
+  private currentBattleMode: BattleMode = '1v1';
+  private debugMode = false;
 
   constructor(containerId: string = '#screen-battle') {
     this.container = $required(containerId);
@@ -46,6 +55,7 @@ export class BattleScreen {
     if (this.stageElement) {
       this.renderer = new CanvasArena(this.stageElement);
       this.renderer.setRenderBodies(false); // keep DOM sprites visible
+      this.renderer.setBattleMode(this.currentBattleMode);
       this.renderer.start();
     }
 
@@ -56,8 +66,10 @@ export class BattleScreen {
       });
     }
 
+    // Initialize camera with grid awareness
     if (this.stageElement) {
       this.camera = new CameraDirector(this.stageElement);
+      this.initializeGridConfig();
     }
 
     // Create combat log container with fixed height
@@ -73,6 +85,34 @@ export class BattleScreen {
 
     // Setup event listeners
     this.setupEventListeners();
+
+    // Apply debug mode if set
+    if (this.debugMode) {
+      this.enableDebugOverlay();
+    }
+  }
+
+  /**
+   * Initialize grid configuration for camera and renderer
+   * This sets up grid-aware camera bounds and movement zone visualization
+   */
+  private initializeGridConfig(): void {
+    if (!this.stageElement) return;
+
+    const viewport = {
+      width: this.stageElement.clientWidth || 800,
+      height: this.stageElement.clientHeight || 420,
+    };
+
+    const gridGeometry = computeGridGeometry(viewport);
+    const movementZoneBounds = getMovementZoneBounds();
+
+    // Configure camera with grid awareness
+    this.camera?.setGridConfig({
+      gridGeometry,
+      movementZoneBounds,
+      cameraConfig: getCameraConfig(),
+    });
   }
 
   /**
@@ -80,7 +120,7 @@ export class BattleScreen {
    */
   private createArena(): HTMLElement {
     const arena = createElement('div', {
-      className: 'arena relative h-[280px]',
+      className: 'arena relative h-[420px]',
     });
 
     this.shakeLayer = createElement('div', {
@@ -137,6 +177,7 @@ export class BattleScreen {
 
   /**
    * Initialize fighters on the arena
+   * Uses grid-based starting positions from arena config
    */
   private initializeFighters(player: Fighter, enemy: Fighter): void {
     if (!this.stageElement) return;
@@ -145,20 +186,27 @@ export class BattleScreen {
     this.playerFighter?.destroy();
     this.enemyFighter?.destroy();
 
-    // Create player fighter (left side)
+    // Re-initialize grid config in case viewport changed
+    this.initializeGridConfig();
+
+    // Create player fighter (Team A, left side)
     this.playerFighter = new FighterComponent(
       this.stageElement,
       player,
       true,
-      this.renderer ?? undefined
+      this.renderer ?? undefined,
+      0, // Team index for starting position
+      this.currentBattleMode
     );
 
-    // Create enemy fighter (right side)
+    // Create enemy fighter (Team B, right side)
     this.enemyFighter = new FighterComponent(
       this.stageElement,
       enemy,
       false,
-      this.renderer ?? undefined
+      this.renderer ?? undefined,
+      0, // Team index for starting position
+      this.currentBattleMode
     );
 
     this.camera?.start(() => this.collectCameraTargets());
@@ -225,6 +273,74 @@ export class BattleScreen {
    */
   getEffects(): Effects | null {
     return this.effects;
+  }
+
+  /**
+   * Set the battle mode (1v1, 2v2, etc.)
+   * This affects starting positions for fighters
+   */
+  setBattleMode(mode: BattleMode): void {
+    this.currentBattleMode = mode;
+    this.renderer?.setBattleMode(mode);
+  }
+
+  /**
+   * Get current battle mode
+   */
+  getBattleMode(): BattleMode {
+    return this.currentBattleMode;
+  }
+
+  /**
+   * Enable debug overlay for development
+   * Shows grid lines, movement zone, and starting positions
+   */
+  enableDebugOverlay(): void {
+    this.debugMode = true;
+    this.renderer?.setDebugOptions({
+      showGrid: true,
+      showMovementZone: true,
+      showStartingPositions: true,
+      showFighterCells: true,
+    });
+  }
+
+  /**
+   * Disable debug overlay
+   */
+  disableDebugOverlay(): void {
+    this.debugMode = false;
+    this.renderer?.setDebugOptions({
+      showGrid: false,
+      showMovementZone: false,
+      showStartingPositions: false,
+      showFighterCells: false,
+    });
+  }
+
+  /**
+   * Toggle debug overlay
+   */
+  toggleDebugOverlay(): void {
+    if (this.debugMode) {
+      this.disableDebugOverlay();
+    } else {
+      this.enableDebugOverlay();
+    }
+  }
+
+  /**
+   * Get canvas arena renderer
+   */
+  getRenderer(): CanvasArena | null {
+    return this.renderer;
+  }
+
+  /**
+   * Get camera director
+   */
+  getCamera(): CameraDirector | null {
+    return this.camera;
   }
 
   /**

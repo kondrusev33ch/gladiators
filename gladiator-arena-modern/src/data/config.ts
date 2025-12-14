@@ -104,10 +104,13 @@ export const REALTIME: RealTimeCombatConfig = {
 export const MOVEMENT: MovementConfig = {
   LUNGE_DISTANCE: 60,
   ARENA_PADDING: 60,
-  LANES: [-18, 0, 18],
+  LANES: [-32, -12, 8],
   FOOTWORK: {
-    SPEED: 240, // px per second
-    BACKPEDAL_SPEED: 280, // px per second
+    // Expressed in grid-cells per second, then converted to pixels at runtime
+    // using the current arena `cellWidth`. This keeps movement consistent even
+    // when the arena grid has many columns (small cells).
+    SPEED: 3.2, // cells per second
+    BACKPEDAL_SPEED: 3.6, // cells per second
     STRAFE_DISTANCE: 55,
     COST_PER_SECOND: 7,
   },
