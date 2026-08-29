@@ -1,15 +1,27 @@
-# Gladiator Arena - Modernization Plan v2.0 (2D Enhanced)
+# Roadmap
 
-## Previously Completed (Phases 1-6)
-- Real-time combat core with fixed-timestep updates
-- Movement, dodging, and spacing mechanics
-- Attacks, blocks, and parries system
-- State-driven animation controller
-- Visual effects and camera behaviors
-- AI behaviors with behavior trees
+Development plan for [Gladiator Arena](gladiator-arena-modern/). Checked items are implemented; the rest is planned and subject to change.
 
+## Completed
 
-### Phase 7: Enhanced 2D Rendering & Visual Effects
+**Phases 1–6 — real-time combat core**
+- [x] Project setup: Vite + TypeScript + Tailwind, strict TS, path aliases
+- [x] Core systems: EventBus, StateMachine, ScreenManager, Game controller
+- [x] Real-time combat on a fixed timestep (stamina, initiative, hitboxes)
+- [x] Movement, dodging, dashing and spacing mechanics
+- [x] Attacks, blocks, parries, guard breaks and staggers
+- [x] State-driven animation controller
+- [x] Visual effects and camera behaviors (hit-stop, slow-mo, shake)
+- [x] Behavior-tree AI with difficulty profiles
+
+**Grid-based arena system**
+- [x] Arena config loader (grid, movement zone, spawn points, camera limits, fighter scale)
+- [x] Config-driven camera zoom/pan constraints
+- [x] [Arena markup tool](arena_grid_markup/) for producing configs
+
+## In progress / planned
+
+### Phase 7: Enhanced 2D Rendering & Visual Effects (in progress)
 **Goal:** Upgrade sprite system with better graphics and effects
 
 #### 7.1 Advanced Canvas Rendering
@@ -862,7 +874,3 @@ Create complete background sets for:
 4. **Build First Arena Background** - Create coliseum with parallax layers
 5. **Test 2v2 Battle** - Get basic team combat working
 6. **Iterate and Expand** - Add more classes, arenas, features
-
----
-
-This modernization plan transforms your gladiator arena into a rich 2D combat experience with realistic sprites, ranged combat, dynamic arenas, and massive team battles - all while staying true to the 2D aesthetic!

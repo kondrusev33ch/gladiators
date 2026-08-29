@@ -1,5 +1,6 @@
-# OLYMPUS FALL
-## A Game Universe Concept
+# Olympus Fall
+
+World-building concept for the gladiator game universe. This is a working document: the setting is established, the story and mechanics are still open.
 
 ---
 
@@ -80,7 +81,7 @@ From the mud of the Undercity to the marble halls of Elysium, you will:
 
 ## VISUAL IDENTITY
 
-Based on your reference images, the aesthetic pillars:
+Aesthetic pillars:
 
 | Element | Upper World (Elysium) | Lower World (Undercity) |
 |--------|----------------------|------------------------|
@@ -91,18 +92,14 @@ Based on your reference images, the aesthetic pillars:
 
 ---
 
-## QUESTIONS TO DEVELOP
+## OPEN QUESTIONS
 
 1. **What is the Synthetic's backstory?** Why was it discarded? Is there something unique about it?
 
 2. **What's the protagonist's name/background?** Any personal stakes beyond survival?
 
-3. **Combat system** — Turn-based? Real-time? Management sim with auto-battles?
+3. **Combat system** — The current prototype is real-time 1v1 (see [`gladiator-arena-modern`](../gladiator-arena-modern/)). Should the meta layer be a management sim with auto-battles, or direct control?
 
 4. **Progression** — Linear story or open-ended sandbox?
 
 5. **Moral choices** — Can you treat your Synthetic as a tool, a partner, or something more?
-
----
-
-What aspect would you like to develop first? The world-building, characters, gameplay mechanics, or narrative structure?
