@@ -4,6 +4,8 @@ A small standalone web app for turning an arena image into a game-ready configur
 
 The output is consumed by [`gladiator-arena-modern`](../gladiator-arena-modern/).
 
+**Live:** https://kondrusev33ch.github.io/gladiators/markup/
+
 Built with Vite, TypeScript, Tailwind CSS and the Canvas API.
 
 ## Getting started

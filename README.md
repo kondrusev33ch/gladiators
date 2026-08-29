@@ -2,6 +2,10 @@
 
 A 2D gladiator combat game prototype and the tooling around it.
 
+**▶ [Play it in the browser](https://kondrusev33ch.github.io/gladiators/)** · [Arena markup tool](https://kondrusev33ch.github.io/gladiators/markup/)
+
+![Gameplay: Murmillo vs Velites in the Lower World arena](docs/media/gameplay.gif)
+
 The playable app is **[`gladiator-arena-modern`](gladiator-arena-modern/)** — a real-time 1v1 arena fight in the browser (TypeScript + Vite + Canvas). **[`arena_grid_markup`](arena_grid_markup/)** is a companion tool for marking up arena images with a grid, movement zone, spawn points and camera limits; its JSON output is consumed by the game.
 
 > Status: early prototype, actively developed. Expect placeholder art and frequent changes.
@@ -74,6 +78,20 @@ The config format is documented in [`arena_grid_markup/README.md`](arena_grid_ma
 - Playable loop: pick one of 8 gladiator classes, fight a CPU opponent, see the results
 
 See [`gladiator-arena-modern/README.md`](gladiator-arena-modern/README.md) for mechanics, architecture and configuration, and [`ROADMAP.md`](ROADMAP.md) for what comes next (sprites, animation system, arenas, team battles, audio, progression).
+
+## Screenshots
+
+| Choose a fighter | Battle | Results |
+| --- | --- | --- |
+| ![Selection screen](docs/media/selection.png) | ![Battle screen](docs/media/battle.png) | ![Results screen](docs/media/results.png) |
+
+## How it was built
+
+The code was developed with [Claude Code](https://claude.com/claude-code), working through the phased plan in [`ROADMAP.md`](ROADMAP.md) with strict TypeScript, ESLint and Prettier as guard rails. Concept art and the arena background were generated with Google Gemini (see [License](#license)).
+
+## Deployment
+
+Every push to `main` builds both apps and publishes them to GitHub Pages via [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml): the game at `/gladiators/` and the markup tool at `/gladiators/markup/`.
 
 ## License
 

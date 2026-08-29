@@ -609,7 +609,7 @@ export class CanvasArena {
     const img = new window.Image();
     // Load from arena config - image path from config file
     const imageFile = getArenaImageFile();
-    img.src = `/images/arena/${imageFile}`;
+    img.src = `${import.meta.env.BASE_URL}images/arena/${imageFile}`;
     img.onload = () => {
       this.backgroundImage = img;
       this.backgroundLoaded = true;

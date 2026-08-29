@@ -4,6 +4,8 @@ Real-time 2D gladiator combat in the browser. Pick a fighter, enter the arena, a
 
 Built with **TypeScript**, **Vite**, **Tailwind CSS v4** and the **Canvas API** — no game engine, no framework.
 
+**Live demo:** https://kondrusev33ch.github.io/gladiators/
+
 ## Getting started
 
 Requires Node.js 20+.
@@ -129,6 +131,7 @@ Path aliases: `@`, `@core`, `@systems`, `@components`, `@data`, `@types`, `@util
 
 - TypeScript strict mode with `noUnusedLocals`, `noImplicitReturns`, etc.
 - ESLint + Prettier; run `npm run lint` and `npm run format:check` before committing.
+- Production builds for GitHub Pages use `npm run build -- --base=/gladiators/` (see the root [`deploy.yml`](../.github/workflows/deploy.yml)); runtime asset URLs must go through `import.meta.env.BASE_URL`.
 - Sprites are currently emoji/CSS placeholders; real sprite sheets and an animation system are on the [roadmap](../ROADMAP.md).
 
 ## License
